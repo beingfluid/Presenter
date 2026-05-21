@@ -5,6 +5,9 @@ import { FONT_LIST, loadFont } from './fonts.js';
 import { initGuides, showGuides, hideGuides } from './guides.js';
 import { initRibbon, renderRibbon, setRibbonSelection } from './ribbon.js';
 import { loadMonaco, createCodeEditor, destroyAllEditors, CODE_LANGUAGES, CODE_THEMES } from './code.js';
+import { initContextMenu } from './contextmenu.js';
+import { initStatusBar, renderStatusBar, setZoom, getZoom } from './statusbar.js';
+import { initLayers, renderLayers, setLayersSelection, toggleLayersPanel } from './layers.js';
 
 let slideListEl, canvasEl, toolbarEl, propertiesEl;
 let selectedElementId = null;
@@ -66,6 +69,17 @@ export function initEditor() {
   toolbarEl = document.getElementById('toolbar');
   propertiesEl = document.getElementById('properties-panel');
   initRibbon();
+  initStatusBar();
+  initLayers();
+  initContextMenu(canvasEl);
+
+  document.addEventListener('status:zoom', (e) => { canvasZoom = e.detail; applyZoom(); });
+  document.addEventListener('status:present', () => switchMode('player'));
+  document.addEventListener('layers:select', (e) => {
+    selectedElementId = e.detail;
+    setRibbonSelection(selectedElementId);
+    renderRibbon(); renderCanvas(); renderProperties();
+  });
 
   document.addEventListener('presenter:addslide', () => addSlideQuick());
   document.addEventListener('presenter:duplicateslide', () => duplicateSlide());
@@ -89,6 +103,7 @@ export function initEditor() {
   document.addEventListener('view:toggle-properties', () => {
     propertiesEl.hidden = !propertiesEl.hidden;
   });
+  document.addEventListener('view:toggle-layers', () => toggleLayersPanel());
   document.addEventListener('view:slide-bg', () => {
     selectedElementId = null; renderCanvas(); renderProperties();
   });
@@ -157,6 +172,9 @@ export function renderEditor() {
   renderProperties();
   setRibbonSelection(selectedElementId);
   renderRibbon();
+  renderStatusBar();
+  setLayersSelection(selectedElementId);
+  renderLayers();
 }
 
 // === SLIDE LIST ===

@@ -21,6 +21,14 @@
     <div id="slide-list" class="slide-list" role="listbox" aria-label="Slides"></div>
     <div id="slide-canvas"></div>
     <div id="properties-panel"></div>
+    <div id="layers-panel" hidden>
+      <div class="layers-header">
+        <span>Layers</span>
+        <button class="layers-close" id="layers-close">&times;</button>
+      </div>
+      <div class="layers-list"></div>
+    </div>
+    <div id="status-bar"></div>
   </div>
 
   <!-- Player Mode -->
@@ -84,6 +92,11 @@
   </div>
 
   <script type="module" src="js/app.js"></script>
+  <script>
+    document.getElementById('layers-close')?.addEventListener('click', () => {
+      document.getElementById('layers-panel').hidden = true;
+    });
+  </script>
   <script type="module">
     // Toast
     const toast = document.getElementById('toast');

@@ -59,6 +59,7 @@ function buildMenuBar() {
           <button data-cmd="zoom-fit">Zoom to Fit</button>
           <div class="menu-divider"></div>
           <button data-cmd="slide-sorter">Slide Sorter</button>
+          <button data-cmd="toggle-layers">Layers Panel</button>
           <button data-cmd="toggle-properties">Toggle Properties Panel</button>
         </div>
       </div>
@@ -250,6 +251,7 @@ function executeCommand(cmd) {
     case 'zoom-out': dispatch('view:zoom', -10); break;
     case 'zoom-fit': dispatch('view:zoom-fit'); break;
     case 'slide-sorter': dispatch('view:slide-sorter'); break;
+    case 'toggle-layers': dispatch('view:toggle-layers'); break;
     case 'toggle-properties': dispatch('view:toggle-properties'); break;
 
     // Insert
