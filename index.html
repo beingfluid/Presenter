@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Presenter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/transitions.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body>
+  <!-- Editor Mode -->
+  <div id="editor">
+    <div id="menu-bar"></div>
+    <div id="toolbar"></div>
+    <div id="ribbon"></div>
+    <div id="slide-list" class="slide-list" role="listbox" aria-label="Slides"></div>
+    <div id="slide-canvas"></div>
+    <div id="properties-panel"></div>
+  </div>
+
+  <!-- Player Mode -->
+  <div id="player" hidden>
+    <div id="slide-container"></div>
+    <div id="progress-track">
+      <div id="progress-bar"></div>
+    </div>
+    <div id="slide-counter"></div>
+    <div id="player-timer"></div>
+    <div id="player-notes"></div>
+    <div id="player-next"></div>
+    <div id="slide-nav">
+      <button id="nav-prev" title="Previous">&#9664;</button>
+      <button id="nav-next" title="Next">&#9654;</button>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast"></div>
+
+  <!-- Help Overlay -->
+  <div id="help-overlay" hidden>
+    <div class="help-content">
+      <h2>Keyboard Shortcuts</h2>
+      <h3>Editor</h3>
+      <dl>
+        <dt><kbd>Ctrl</kbd>+<kbd>N</kbd></dt><dd>New slide</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>D</kbd></dt><dd>Duplicate slide</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>C/X/V</kbd></dt><dd>Copy / Cut / Paste element</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>Z/Y</kbd></dt><dd>Undo / Redo</dd>
+        <dt><kbd>Delete</kbd></dt><dd>Delete selected element</dd>
+        <dt><kbd>Arrow keys</kbd></dt><dd>Nudge element (hold Shift for 5x)</dd>
+        <dt><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>&uarr;/&darr;</kbd></dt><dd>Reorder slides</dd>
+        <dt><kbd>F5</kbd> / <kbd>Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>Start presentation</dd>
+        <dt><kbd>?</kbd></dt><dd>Show this help</dd>
+      </dl>
+      <h3>Canvas</h3>
+      <dl>
+        <dt>Click</dt><dd>Select element (ribbon shows controls)</dd>
+        <dt>Click again</dt><dd>Edit text inline</dd>
+        <dt>Drag</dt><dd>Move (snap guides appear)</dd>
+        <dt>Handles</dt><dd>Resize element</dd>
+        <dt>Double-click code</dt><dd>Open Monaco editor</dd>
+      </dl>
+      <h3>Presentation</h3>
+      <dl>
+        <dt><kbd>&rarr;</kbd> / <kbd>Space</kbd></dt><dd>Next slide</dd>
+        <dt><kbd>&larr;</kbd> / <kbd>Backspace</kbd></dt><dd>Previous slide</dd>
+        <dt><kbd>Home</kbd> / <kbd>End</kbd></dt><dd>First / Last slide</dd>
+        <dt><kbd>1</kbd>&ndash;<kbd>9</kbd></dt><dd>Jump to slide N</dd>
+        <dt><kbd>F</kbd></dt><dd>Toggle fullscreen</dd>
+        <dt><kbd>L</kbd></dt><dd>Laser pointer</dd>
+        <dt><kbd>N</kbd></dt><dd>Toggle speaker notes</dd>
+        <dt><kbd>O</kbd> / <kbd>G</kbd></dt><dd>Slide overview grid</dd>
+        <dt><kbd>B</kbd> / <kbd>W</kbd></dt><dd>Black / White screen</dd>
+        <dt><kbd>Escape</kbd></dt><dd>Exit presentation</dd>
+      </dl>
+      <p style="margin-top: 20px; color: var(--editor-text-muted); font-size: 12px;">Press <kbd>?</kbd> or <kbd>Escape</kbd> to close</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+  <script type="module">
+    // Toast
+    const toast = document.getElementById('toast');
+    let toastTimer;
+    document.addEventListener('presenter:toast', (e) => {
+      toast.textContent = e.detail;
+      toast.classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('visible'), 3000);
+    });
+
+    // Help overlay
+    const help = document.getElementById('help-overlay');
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '?' && !e.target.closest('[contenteditable="true"]') && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        help.hidden = !help.hidden;
+      }
+      if (e.key === 'Escape' && !help.hidden) {
+        help.hidden = true;
+      }
+    });
+    help.addEventListener('click', (e) => {
+      if (e.target === help) help.hidden = true;
+    });
+  </script>
+</body>
+</html>

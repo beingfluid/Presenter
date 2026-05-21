@@ -1,0 +1,91 @@
+/* Slide themes — applied via data-theme attribute */
+
+[data-theme="dark"] {
+  --slide-bg: #1a1a2e;
+  --slide-text: #eaeaea;
+  --slide-accent: #7c5cfc;
+}
+
+[data-theme="light"] {
+  --slide-bg: #ffffff;
+  --slide-text: #333333;
+  --slide-accent: #2563eb;
+}
+
+[data-theme="ocean"] {
+  --slide-bg: #0a1628;
+  --slide-text: #b8d4e3;
+  --slide-accent: #00d2ff;
+}
+
+[data-theme="sunset"] {
+  --slide-bg: #2d1b3d;
+  --slide-text: #f0d4d4;
+  --slide-accent: #ff6b6b;
+}
+
+[data-theme="forest"] {
+  --slide-bg: #0d1f0d;
+  --slide-text: #c4e8c4;
+  --slide-accent: #4ecdc4;
+}
+
+[data-theme="royal"] {
+  --slide-bg: #0f0a2e;
+  --slide-text: #d4c4e8;
+  --slide-accent: #ffd700;
+}
+
+[data-theme="minimal"] {
+  --slide-bg: #f8f9fa;
+  --slide-text: #444444;
+  --slide-accent: #333333;
+}
+
+[data-theme="magenta"] {
+  --slide-bg: #1a0a1a;
+  --slide-text: #f0d0f0;
+  --slide-accent: #ff00ff;
+}
+
+/* Apply theme to canvas and player */
+.slide-preview[data-theme],
+.player-slide[data-theme],
+#player[data-theme] .player-slide {
+  background: var(--slide-bg);
+  color: var(--slide-text);
+}
+
+.text-element,
+.player-text {
+  color: var(--slide-text);
+}
+
+/* Theme-aware thumb previews */
+.slide-thumb[data-theme="dark"] { background: #1a1a2e; color: #eaeaea; }
+.slide-thumb[data-theme="light"] { background: #ffffff; color: #333; }
+.slide-thumb[data-theme="ocean"] { background: #0a1628; color: #b8d4e3; }
+.slide-thumb[data-theme="sunset"] { background: #2d1b3d; color: #f0d4d4; }
+.slide-thumb[data-theme="forest"] { background: #0d1f0d; color: #c4e8c4; }
+.slide-thumb[data-theme="royal"] { background: #0f0a2e; color: #d4c4e8; }
+.slide-thumb[data-theme="minimal"] { background: #f8f9fa; color: #444; }
+.slide-thumb[data-theme="magenta"] { background: #1a0a1a; color: #f0d0f0; }
+
+/* Player theme inheritance */
+#player[data-theme="dark"] .player-slide { background: #1a1a2e; color: #eaeaea; }
+#player[data-theme="light"] .player-slide { background: #ffffff; color: #333; }
+#player[data-theme="ocean"] .player-slide { background: #0a1628; color: #b8d4e3; }
+#player[data-theme="sunset"] .player-slide { background: #2d1b3d; color: #f0d4d4; }
+#player[data-theme="forest"] .player-slide { background: #0d1f0d; color: #c4e8c4; }
+#player[data-theme="royal"] .player-slide { background: #0f0a2e; color: #d4c4e8; }
+#player[data-theme="minimal"] .player-slide { background: #f8f9fa; color: #444; }
+#player[data-theme="magenta"] .player-slide { background: #1a0a1a; color: #f0d0f0; }
+
+#player[data-theme="dark"] .player-text { color: #eaeaea; }
+#player[data-theme="light"] .player-text { color: #333; }
+#player[data-theme="ocean"] .player-text { color: #b8d4e3; }
+#player[data-theme="sunset"] .player-text { color: #f0d4d4; }
+#player[data-theme="forest"] .player-text { color: #c4e8c4; }
+#player[data-theme="royal"] .player-text { color: #d4c4e8; }
+#player[data-theme="minimal"] .player-text { color: #444; }
+#player[data-theme="magenta"] .player-text { color: #f0d0f0; }
