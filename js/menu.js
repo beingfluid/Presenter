@@ -24,6 +24,7 @@ function buildMenuBar() {
         <div class="menu-dropdown" data-dropdown="file">
           <button data-cmd="new-presentation">New Presentation</button>
           <button data-cmd="open-presentation">Open...</button>
+          <button data-cmd="open-library">Open from Library...</button>
           <div class="menu-divider"></div>
           <button data-cmd="rename-presentation">Rename</button>
           <button data-cmd="duplicate-presentation">Duplicate Presentation</button>
@@ -214,6 +215,10 @@ function executeCommand(cmd) {
       dispatch('menu:refresh');
       break;
     }
+    case 'open-library': {
+      openLibraryPanel();
+      break;
+    }
     case 'import': {
       const input = document.createElement('input');
       input.type = 'file'; input.accept = '.json';
@@ -337,6 +342,74 @@ if(e.clientX>r.width*0.5){idx=Math.min(idx+1,pres.slides.length-1);}else{idx=Mat
   a.click();
   URL.revokeObjectURL(url);
   toast('Exported standalone HTML');
+}
+
+async function openLibraryPanel() {
+  let panel = document.getElementById('library-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'library-panel';
+    panel.className = 'floating-panel';
+    document.getElementById('editor').appendChild(panel);
+  }
+
+  panel.innerHTML = '<h3>Presentation Library</h3><p style="color:var(--editor-text-muted);font-size:12px">Loading...</p>';
+  panel.hidden = false;
+
+  try {
+    const res = await fetch('Presentations/manifest.json');
+    if (!res.ok) throw new Error('No manifest found');
+    const manifest = await res.json();
+
+    panel.innerHTML = `
+      <h3>Presentation Library</h3>
+      <div class="library-grid">
+        ${manifest.map(item => `
+          <button class="library-item" data-file="${item.file}">
+            <span class="library-icon">&#128196;</span>
+            <span class="library-title">${item.title}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+
+    panel.querySelectorAll('.library-item').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const file = btn.dataset.file;
+        try {
+          const r = await fetch(`Presentations/${file}`);
+          if (!r.ok) throw new Error(`Failed to load ${file}`);
+          const data = await r.json();
+          if (!data.slides || !Array.isArray(data.slides)) throw new Error('Invalid presentation');
+          if (!data.id) data.id = crypto.randomUUID();
+          const state = getState();
+          const existing = state.presentations.findIndex(p => p.id === data.id);
+          if (existing !== -1) {
+            state.presentations[existing] = data;
+          } else {
+            state.presentations.push(data);
+          }
+          state.active = data;
+          state.currentSlideIndex = 0;
+          save();
+          dispatch('menu:refresh');
+          toast(`Opened: ${data.title}`);
+          panel.hidden = true;
+        } catch (e) {
+          toast(e.message);
+        }
+      });
+    });
+  } catch (e) {
+    panel.innerHTML = `<h3>Presentation Library</h3><p style="color:var(--editor-danger);font-size:12px">Could not load library: ${e.message}</p>`;
+  }
+
+  setTimeout(() => {
+    const handler = (e) => {
+      if (panel && !panel.contains(e.target)) panel.hidden = true;
+    };
+    document.addEventListener('mousedown', handler, { once: true });
+  }, 50);
 }
 
 function dispatch(event, detail = null) {

@@ -1188,6 +1188,45 @@ body {
   opacity: 0.85;
 }
 
+/* Library Panel */
+.library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.library-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--editor-border);
+  border-radius: 8px;
+  background: var(--editor-bg);
+  color: var(--editor-text);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.library-item:hover {
+  border-color: var(--editor-accent);
+  transform: translateY(-2px);
+}
+
+.library-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.library-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* List convert group */
 .list-convert-group {
   margin-bottom: 8px;
