@@ -240,16 +240,29 @@ function renderCanvas() {
   const bgStyle = getSlideBackgroundStyle(slide, theme);
   const themeAttr = (!slide.background || slide.background.type === 'theme') ? `data-theme="${theme}"` : '';
 
-  const ar = getAspectRatioCSS();
   canvasEl.innerHTML = `
-    <div class="slide-preview ${showGrid ? 'show-grid' : ''}" ${themeAttr} style="${bgStyle}aspect-ratio:${ar};" id="slide-stage">
+    <div class="slide-preview ${showGrid ? 'show-grid' : ''}" ${themeAttr} style="${bgStyle}" id="slide-stage">
       ${slide.elements.map(el => renderElement(el)).join('')}
       <div class="alignment-guides"></div>
     </div>
   `;
 
   const stage = document.getElementById('slide-stage');
-  if (stage) initGuides(stage);
+  if (stage) {
+    initGuides(stage);
+    fitStageToCanvas(stage);
+  }
+}
+
+function fitStageToCanvas(stage) {
+  const canvasRect = canvasEl.getBoundingClientRect();
+  const padding = 40;
+  const availW = canvasRect.width - padding * 2;
+  const availH = canvasRect.height - padding * 2;
+  const scaleX = availW / 960;
+  const scaleY = availH / 540;
+  const scale = Math.min(scaleX, scaleY, 1);
+  stage.style.transform = `scale(${scale * (canvasZoom / 100)})`;
 }
 
 function renderElement(el) {
@@ -678,6 +691,12 @@ function renderTextProperties(el) {
       </select>
     </label>
     <label class="checkbox-label"><input type="checkbox" data-field="textShadow" ${el.textShadow ? 'checked' : ''}> Text Shadow</label>
+    <h3>List Format</h3>
+    <div class="btn-group list-convert-group">
+      <button class="btn btn-sm" data-list-action="bullet" title="Bullet Points">• Bullets</button>
+      <button class="btn btn-sm" data-list-action="number" title="Numbered List">1. Number</button>
+      <button class="btn btn-sm" data-list-action="alpha" title="Alphabetical">a. Alpha</button>
+    </div>
     <h3>Link</h3>
     <label>Element Link (opens on click in presentation):<input type="text" data-field="link" value="${el.link || ''}" placeholder="https://..."></label>
   `;
@@ -861,6 +880,14 @@ function attachAllListeners() {
   propertiesEl.querySelector('[data-action="send-back"]')?.addEventListener('click', () => changeZIndex(el, -1));
   propertiesEl.querySelector('[data-action="lock"]')?.addEventListener('click', () => { el.locked = !el.locked; save(); renderProperties(); renderCanvas(); });
   propertiesEl.querySelector('[data-action="duplicate-el"]')?.addEventListener('click', duplicateElement);
+
+  // List conversion buttons
+  propertiesEl.querySelectorAll('[data-list-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const listType = btn.dataset.listAction;
+      convertElementToList(el, listType);
+    });
+  });
 
   // Font search
   setupFontSearch(el);
@@ -1236,6 +1263,10 @@ function showFormatToolbar() {
     <button data-cmd="fontSize-up" title="Increase Size">A&#8593;</button>
     <button data-cmd="fontSize-down" title="Decrease Size">A&#8595;</button>
     <span class="fmt-sep"></span>
+    <button data-cmd="list-bullet" title="Bullet Points">&#8226;</button>
+    <button data-cmd="list-number" title="Numbered List">1.</button>
+    <button data-cmd="list-alpha" title="Alphabetical List">A.</button>
+    <span class="fmt-sep"></span>
     <button data-cmd="createLink" title="Add Link">&#128279;</button>
     <button data-cmd="unlink" title="Remove Link">&#10060;</button>
     <input type="color" class="fmt-color-picker" value="#ff0000" title="Pick color">
@@ -1254,7 +1285,6 @@ function showFormatToolbar() {
       if (cmd === 'createLink') {
         const url = prompt('Enter URL:', 'https://');
         if (url) document.execCommand('createLink', false, url);
-        // Make links open in new tab
         const links = document.querySelectorAll('[contenteditable="true"] a');
         links.forEach(a => { a.target = '_blank'; a.rel = 'noopener'; });
       } else if (cmd === 'foreColor') {
@@ -1264,6 +1294,8 @@ function showFormatToolbar() {
         document.execCommand('fontSize', false, '5');
       } else if (cmd === 'fontSize-down') {
         document.execCommand('fontSize', false, '2');
+      } else if (cmd.startsWith('list-')) {
+        convertSelectionToList(cmd.replace('list-', ''));
       } else {
         document.execCommand(cmd, false, null);
       }
@@ -1274,6 +1306,47 @@ function showFormatToolbar() {
   colorPicker.addEventListener('input', (e) => {
     document.execCommand('foreColor', false, e.target.value);
   });
+}
+
+function convertElementToList(el, listType) {
+  if (!el || el.type !== 'text') return;
+  saveUndoState();
+  const lines = (el.content || '').split('\n').filter(l => l.trim());
+  el.content = lines.map((line, i) => {
+    let cleaned = line.replace(/^[\s]*[-•●○–—*]\s*/, '').replace(/^[\s]*\d+[.)]\s*/, '').replace(/^[\s]*[a-zA-Z][.)]\s*/, '').replace(/<[^>]*>/g, '');
+    if (listType === 'bullet') return '• ' + cleaned;
+    if (listType === 'number') return `${i + 1}. ` + cleaned;
+    if (listType === 'alpha') return `${String.fromCharCode(97 + i)}. ` + cleaned;
+    return cleaned;
+  }).join('\n');
+  save(); renderCanvas(); renderSlideList(); renderProperties();
+}
+
+function convertSelectionToList(listType) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const editEl = document.querySelector('[contenteditable="true"]');
+  if (!editEl) return;
+
+  const text = editEl.innerText || editEl.textContent;
+  const lines = text.split('\n').filter(l => l.trim());
+
+  const converted = lines.map((line, i) => {
+    let cleaned = line.replace(/^[\s]*[-•●○–—*]\s*/, '').replace(/^[\s]*\d+[.)]\s*/, '').replace(/^[\s]*[a-zA-Z][.)]\s*/, '');
+    if (listType === 'bullet') return '• ' + cleaned;
+    if (listType === 'number') return `${i + 1}. ` + cleaned;
+    if (listType === 'alpha') return `${String.fromCharCode(97 + i)}. ` + cleaned;
+    return cleaned;
+  }).join('\n');
+
+  editEl.textContent = converted;
+
+  const slide = getCurrentSlide();
+  const el = slide?.elements.find(e => e.id === selectedElementId);
+  if (el) {
+    el.content = converted;
+    save(); renderSlideList();
+  }
 }
 
 function hideFormatToolbar() {
@@ -1539,7 +1612,7 @@ function adjustZoom(delta) {
 
 function applyZoom() {
   const preview = document.getElementById('slide-stage');
-  if (preview) preview.style.transform = `scale(${canvasZoom / 100})`;
+  if (preview) fitStageToCanvas(preview);
 }
 
 function setAspectRatio(ratio) {

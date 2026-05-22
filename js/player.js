@@ -71,7 +71,6 @@ export function stopPresentation() {
   if (laserEl) { laserEl.remove(); laserEl = null; }
   const overview = document.getElementById('slide-overview');
   if (overview) overview.hidden = true;
-
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   }
@@ -184,6 +183,10 @@ function buildSlideElement(slide) {
     else if (bg.type === 'image') el.style.background = `url(${bg.value}) center/cover no-repeat`;
   }
 
+  // Scale factor: editor reference width is 960px, scale fonts to viewport
+  const vw = window.innerWidth;
+  const scaleFactor = vw / 960;
+
   slide.elements.forEach(item => {
     const div = document.createElement('div');
     div.className = 'player-element';
@@ -191,9 +194,9 @@ function buildSlideElement(slide) {
 
     if (item.rotation) style += `transform:rotate(${item.rotation}deg);`;
     if (item.backgroundColor) style += `background-color:${item.backgroundColor};`;
-    if (item.borderWidth) style += `border:${item.borderWidth}px ${item.borderStyle} ${item.borderColor};`;
-    if (item.borderRadius) style += `border-radius:${item.borderRadius}px;`;
-    if (item.shadowEnabled) style += `box-shadow:${item.shadowX}px ${item.shadowY}px ${item.shadowBlur}px ${item.shadowColor};`;
+    if (item.borderWidth) style += `border:${Math.round(item.borderWidth * scaleFactor)}px ${item.borderStyle} ${item.borderColor};`;
+    if (item.borderRadius) style += `border-radius:${Math.round(item.borderRadius * scaleFactor)}px;`;
+    if (item.shadowEnabled) style += `box-shadow:${Math.round(item.shadowX * scaleFactor)}px ${Math.round(item.shadowY * scaleFactor)}px ${Math.round(item.shadowBlur * scaleFactor)}px ${item.shadowColor};`;
     if (item.link) style += `cursor:pointer;`;
 
     div.style.cssText = style;
@@ -209,19 +212,20 @@ function buildSlideElement(slide) {
     if (item.type === 'text') {
       loadFont(item.fontFamily);
       const vAlign = item.verticalAlign || 'top';
-      const alignItems = vAlign === 'top' ? 'flex-start' : vAlign === 'bottom' ? 'flex-end' : 'center';
-      let textStyle = `font-size:${item.fontSize}px;font-weight:${item.fontWeight};text-align:${item.textAlign};font-family:'${item.fontFamily}',sans-serif;letter-spacing:${item.letterSpacing || 0}px;line-height:${item.lineHeight || 1.4};text-transform:${item.textTransform || 'none'};`;
+      const justifyContent = vAlign === 'top' ? 'flex-start' : vAlign === 'bottom' ? 'flex-end' : 'center';
+      const scaledFontSize = Math.round(item.fontSize * scaleFactor);
+      const scaledLetterSpacing = Math.round((item.letterSpacing || 0) * scaleFactor);
+      let textStyle = `font-size:${scaledFontSize}px;font-weight:${item.fontWeight};text-align:${item.textAlign};font-family:'${item.fontFamily}',sans-serif;letter-spacing:${scaledLetterSpacing}px;line-height:${item.lineHeight || 1.4};text-transform:${item.textTransform || 'none'};`;
       if (item.fontColor) textStyle += `color:${item.fontColor};`;
       if (item.textShadow) textStyle += `text-shadow:2px 2px 4px rgba(0,0,0,0.5);`;
-      div.style.cssText += `align-items:${alignItems};`;
+      div.style.cssText += `justify-content:${justifyContent};`;
       div.innerHTML = `<div class="player-text" style="${textStyle}">${item.content}</div>`;
     } else if (item.type === 'code') {
-      const fontSize = item.codeFontSize || 14;
+      const scaledCodeSize = Math.round((item.codeFontSize || 14) * scaleFactor);
       const isDark = !item.codeTheme || item.codeTheme !== 'vs';
       const codeBg = isDark ? '#1e1e1e' : '#ffffff';
       const fg = isDark ? '#d4d4d4' : '#1e1e1e';
-      div.innerHTML = `<pre class="player-code" style="background:${codeBg};color:${fg};font-size:${fontSize}px;margin:0;padding:16px 20px;border-radius:${item.borderRadius || 0}px;overflow:auto;height:100%;font-family:'Fira Code','JetBrains Mono',monospace;line-height:1.6;white-space:pre;tab-size:2">${escapeHtml(item.content || '')}</pre>`;
-      // Apply Monaco syntax highlighting asynchronously
+      div.innerHTML = `<pre class="player-code" style="background:${codeBg};color:${fg};font-size:${scaledCodeSize}px;margin:0;padding:${Math.round(16 * scaleFactor)}px ${Math.round(20 * scaleFactor)}px;border-radius:${Math.round((item.borderRadius || 0) * scaleFactor)}px;overflow:auto;height:100%;font-family:'Fira Code','JetBrains Mono',monospace;line-height:1.6;white-space:pre;tab-size:2">${escapeHtml(item.content || '')}</pre>`;
       const codeDiv = div;
       const lang = item.language || 'javascript';
       const cTheme = item.codeTheme || 'vs-dark';
@@ -232,8 +236,6 @@ function buildSlideElement(slide) {
             const pre = codeDiv.querySelector('.player-code');
             if (pre) {
               pre.innerHTML = html;
-              pre.style.padding = '16px 20px';
-              pre.style.lineHeight = '1.6';
             }
           });
         }

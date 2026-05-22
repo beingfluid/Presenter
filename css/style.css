@@ -462,13 +462,13 @@ body {
 }
 
 .slide-preview {
-  width: 100%;
-  max-width: 960px;
-  aspect-ratio: 16/9;
+  width: 960px;
+  height: 540px;
   border-radius: 6px;
   box-shadow: 0 4px 24px rgba(0,0,0,0.5);
   overflow: visible;
   position: relative;
+  transform-origin: center center;
 }
 
 /* Canvas Elements */
@@ -926,7 +926,7 @@ body {
 .player-element {
   position: absolute;
   display: flex;
-  align-items: center;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -1186,6 +1186,11 @@ body {
 
 .player-element[data-link]:hover {
   opacity: 0.85;
+}
+
+/* List convert group */
+.list-convert-group {
+  margin-bottom: 8px;
 }
 
 /* Inline format hint */
