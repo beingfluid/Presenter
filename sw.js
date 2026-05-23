@@ -2,7 +2,7 @@
 /// <reference lib="webworker" />
 // Presenter service worker — offline-first cache for app shell.
 // Cache version: bump to force update.
-const CACHE = 'presenter-v11';
+const CACHE = 'presenter-v12';
 
 // Files that make up the app shell (relative to scope).
 const ASSETS = [

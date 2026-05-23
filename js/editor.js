@@ -413,21 +413,21 @@ function renderToolbar() {
   toolbarEl.innerHTML = `
     <div class="toolbar-group">
       <span class="split-button">
-        <button class="btn split-main" data-action="add-slide" title="Add new slide (uses last layout)">+ Slide</button>
-        <button class="btn split-arrow" data-action="add-slide-layouts" title="Choose layout&hellip;">&#9662;</button>
+        <button class="btn split-main" data-action="add-slide" title="Add new slide (uses last layout)" aria-label="Add Slide">&#43;</button>
+        <button class="btn split-arrow" data-action="add-slide-layouts" title="Choose layout&hellip;" aria-label="Choose layout">&#9662;</button>
       </span>
-      <button class="btn" data-action="duplicate-slide">Duplicate</button>
-      <button class="btn btn-danger" data-action="delete-slide">Delete</button>
+      <button class="btn" data-action="duplicate-slide" title="Duplicate slide" aria-label="Duplicate slide">&#10696;</button>
+      <button class="btn btn-danger" data-action="delete-slide" title="Delete slide" aria-label="Delete slide">&#128465;</button>
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
-      <button class="btn" data-action="add-text">+ Text</button>
-      <button class="btn" data-action="add-image">+ Image</button>
-      <button class="btn" data-action="add-code">+ Code</button>
-      <button class="btn" data-action="add-shape">+ Shape &#9662;</button>
-      <button class="btn" data-action="add-embed" title="Embed YouTube/web">+ Embed</button>
-      <button class="btn" data-action="add-video" title="MP4/WebM video">+ Video</button>
-      <button class="btn" data-action="add-audio" title="MP3/OGG audio">+ Audio</button>
+      <button class="btn" data-action="add-text" title="Add Text" aria-label="Add Text"><b>T</b><sup>+</sup></button>
+      <button class="btn" data-action="add-image" title="Add Image" aria-label="Add Image">&#128247;<sup>+</sup></button>
+      <button class="btn" data-action="add-code" title="Add Code" aria-label="Add Code">&lt;/&gt;<sup>+</sup></button>
+      <button class="btn" data-action="add-shape" title="Add Shape" aria-label="Add Shape">&#9670;<sup>+</sup>&#9662;</button>
+      <button class="btn" data-action="add-embed" title="Embed YouTube/web" aria-label="Add Embed">&#127760;<sup>+</sup></button>
+      <button class="btn" data-action="add-video" title="MP4/WebM video" aria-label="Add Video">&#127909;<sup>+</sup></button>
+      <button class="btn" data-action="add-audio" title="MP3/OGG audio" aria-label="Add Audio">&#127925;<sup>+</sup></button>
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
@@ -447,10 +447,10 @@ function renderToolbar() {
       </label>
     </div>
     <div class="toolbar-group toolbar-right">
-      <button class="btn" data-action="find" title="Find & Replace (Ctrl+F)">&#128269; Find</button>
-      <button class="btn" data-action="export">Export</button>
-      <label class="btn import-label">Import<input type="file" accept=".json" data-action="import" hidden></label>
-      <button class="btn btn-primary" data-action="present">&#9654; Present</button>
+      <button class="btn" data-action="find" title="Find &amp; Replace (Ctrl+F)" aria-label="Find &amp; Replace">&#128269;</button>
+      <button class="btn" data-action="export" title="Export presentation" aria-label="Export">&#11015;</button>
+      <label class="btn import-label" title="Import presentation" aria-label="Import">&#11014;<input type="file" accept=".json" data-action="import" hidden></label>
+      <button class="btn btn-primary" data-action="present" title="Start presentation (F5)" aria-label="Present">&#9654; Present</button>
     </div>
   `;
 

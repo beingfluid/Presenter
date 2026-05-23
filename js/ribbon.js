@@ -56,32 +56,43 @@ function renderSlideRibbon(slide) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="add-text">+ Text</button>
-      <button class="ribbon-btn" data-ribbon="add-image">+ Image</button>
-      <button class="ribbon-btn" data-ribbon="add-code">+ Code</button>
-      <button class="ribbon-btn" data-ribbon="add-shape">+ Shape</button>
-      <button class="ribbon-btn" data-ribbon="add-embed">+ Embed</button>
-      <button class="ribbon-btn" data-ribbon="add-video">+ Video</button>
-      <button class="ribbon-btn" data-ribbon="add-audio">+ Audio</button>
+      <button class="ribbon-btn" data-ribbon="add-text" title="Add Text" aria-label="Add Text"><b>T</b><sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-image" title="Add Image" aria-label="Add Image">&#128247;<sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-code" title="Add Code" aria-label="Add Code">&lt;/&gt;<sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-shape" title="Add Shape" aria-label="Add Shape">&#9670;<sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-embed" title="Add Embed (YouTube/web)" aria-label="Add Embed">&#127760;<sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-video" title="Add Video" aria-label="Add Video">&#127909;<sup>+</sup></button>
+      <button class="ribbon-btn" data-ribbon="add-audio" title="Add Audio" aria-label="Add Audio">&#127925;<sup>+</sup></button>
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <span class="ribbon-label">Layout:</span>
-      <button class="ribbon-btn" data-ribbon="tpl-0">Title</button>
-      <button class="ribbon-btn" data-ribbon="tpl-2">Content</button>
-      <button class="ribbon-btn" data-ribbon="tpl-4">&#9636;Img+Txt</button>
-      <button class="ribbon-btn" data-ribbon="tpl-5">Txt+Img&#9637;</button>
-      <button class="ribbon-btn" data-ribbon="tpl-3">2 Col</button>
-      <button class="ribbon-btn" data-ribbon="tpl-13">Code</button>
-      <button class="ribbon-btn" data-ribbon="tpl-14">Code+Notes</button>
-      <button class="ribbon-btn" data-ribbon="tpl-16">Blank</button>
+      <span class="ribbon-label">Layout</span>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-0" title="Title" aria-label="Title">${tplIconTitle()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-2" title="Content" aria-label="Content">${tplIconContent()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-4" title="Image + Text" aria-label="Image + Text">${tplIconImgTxt()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-5" title="Text + Image" aria-label="Text + Image">${tplIconTxtImg()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-3" title="Two Columns" aria-label="Two Columns">${tplIcon2Col()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-13" title="Code" aria-label="Code">${tplIconCode()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-14" title="Code + Notes" aria-label="Code + Notes">${tplIconCodeNotes()}</button>
+      <button class="ribbon-btn ribbon-tpl" data-ribbon="tpl-16" title="Blank" aria-label="Blank">${tplIconBlank()}</button>
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="save-tpl">&#9733; Save as Template</button>
+      <button class="ribbon-btn" data-ribbon="save-tpl" title="Save current slide as template" aria-label="Save as Template">&#9733;</button>
     </div>
   `;
 }
+
+// Tiny SVG layout previews so the Layout row reads at a glance.
+function tplBox(inner) { return `<svg viewBox="0 0 20 12" width="22" height="14" aria-hidden="true"><rect x="0.5" y="0.5" width="19" height="11" rx="1.5" fill="none" stroke="currentColor" stroke-width="0.8" opacity="0.55"/>${inner}</svg>`; }
+function tplIconTitle()      { return tplBox('<rect x="4" y="4" width="12" height="2" fill="currentColor"/><rect x="6" y="7" width="8"  height="1" fill="currentColor" opacity="0.6"/>'); }
+function tplIconContent()    { return tplBox('<rect x="3" y="2" width="14" height="1.6" fill="currentColor"/><rect x="3" y="5" width="14" height="1" fill="currentColor" opacity="0.6"/><rect x="3" y="7" width="11" height="1" fill="currentColor" opacity="0.6"/><rect x="3" y="9" width="13" height="1" fill="currentColor" opacity="0.6"/>'); }
+function tplIconImgTxt()     { return tplBox('<rect x="2" y="2" width="7" height="8" fill="currentColor" opacity="0.45"/><rect x="11" y="3" width="6" height="1.2" fill="currentColor"/><rect x="11" y="5" width="6" height="1" fill="currentColor" opacity="0.6"/><rect x="11" y="6.5" width="5" height="1" fill="currentColor" opacity="0.6"/>'); }
+function tplIconTxtImg()     { return tplBox('<rect x="3" y="3" width="6" height="1.2" fill="currentColor"/><rect x="3" y="5" width="6" height="1" fill="currentColor" opacity="0.6"/><rect x="3" y="6.5" width="5" height="1" fill="currentColor" opacity="0.6"/><rect x="11" y="2" width="7" height="8" fill="currentColor" opacity="0.45"/>'); }
+function tplIcon2Col()       { return tplBox('<rect x="2" y="2" width="7" height="8" fill="currentColor" opacity="0.45"/><rect x="11" y="2" width="7" height="8" fill="currentColor" opacity="0.45"/>'); }
+function tplIconCode()       { return tplBox('<text x="10" y="8.5" font-family="monospace" font-size="6" font-weight="700" text-anchor="middle" fill="currentColor">&lt;/&gt;</text>'); }
+function tplIconCodeNotes()  { return tplBox('<rect x="2" y="2" width="11" height="8" fill="currentColor" opacity="0.3"/><text x="7.5" y="7" font-family="monospace" font-size="3.5" font-weight="700" text-anchor="middle" fill="currentColor">&lt;/&gt;</text><rect x="14" y="3" width="4" height="1" fill="currentColor" opacity="0.6"/><rect x="14" y="5" width="4" height="1" fill="currentColor" opacity="0.6"/><rect x="14" y="7" width="3" height="1" fill="currentColor" opacity="0.6"/>'); }
+function tplIconBlank()      { return tplBox(''); }
 
 function renderTextRibbon(el) {
   const vAlign = el.verticalAlign || 'top';
@@ -173,13 +184,13 @@ function renderImageRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="replace-image" title="Replace image from file">&#128247; Replace</button>
+      <button class="ribbon-btn" data-ribbon="replace-image" title="Replace image from file" aria-label="Replace Image">&#128247;</button>
       <button class="ribbon-btn" data-ribbon="flip-h" title="Flip Horizontal">&#8646;</button>
       <button class="ribbon-btn" data-ribbon="flip-v" title="Flip Vertical">&#8645;</button>
       <span class="ribbon-sep-sm"></span>
-      <button class="ribbon-btn" data-ribbon="size-full" title="Full">Full</button>
-      <button class="ribbon-btn" data-ribbon="size-half-left" title="Left Half">L&#189;</button>
-      <button class="ribbon-btn" data-ribbon="size-half-right" title="Right Half">R&#189;</button>
+      <button class="ribbon-btn" data-ribbon="size-full" title="Fill slide" aria-label="Fill slide">&#9974;</button>
+      <button class="ribbon-btn" data-ribbon="size-half-left" title="Left half" aria-label="Left half">&#9612;</button>
+      <button class="ribbon-btn" data-ribbon="size-half-right" title="Right half" aria-label="Right half">&#9616;</button>
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
@@ -253,11 +264,11 @@ function renderEmbedRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="size-full">Full</button>
-      <button class="ribbon-btn" data-ribbon="pos-center-h">&#8596;</button>
-      <button class="ribbon-btn" data-ribbon="pos-center-v">&#8597;</button>
-      <button class="ribbon-btn" data-ribbon="duplicate">&#9851;</button>
-      <button class="ribbon-btn ribbon-danger" data-ribbon="delete">&#128465;</button>
+      <button class="ribbon-btn" data-ribbon="size-full" title="Fill slide" aria-label="Fill slide">&#9974;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center horizontally">&#8596;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Center vertically">&#8597;</button>
+      <button class="ribbon-btn" data-ribbon="duplicate" title="Duplicate">&#9851;</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete" title="Delete">&#128465;</button>
     </div>
   `;
 }
@@ -277,9 +288,9 @@ function renderVideoRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="size-full">Full</button>
-      <button class="ribbon-btn" data-ribbon="duplicate">&#9851;</button>
-      <button class="ribbon-btn ribbon-danger" data-ribbon="delete">&#128465;</button>
+      <button class="ribbon-btn" data-ribbon="size-full" title="Fill slide" aria-label="Fill slide">&#9974;</button>
+      <button class="ribbon-btn" data-ribbon="duplicate" title="Duplicate">&#9851;</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete" title="Delete">&#128465;</button>
     </div>
   `;
 }
@@ -322,7 +333,7 @@ function renderCodeRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="edit-code" title="Open Editor">&#9998; Edit Code</button>
+      <button class="ribbon-btn" data-ribbon="edit-code" title="Open code editor" aria-label="Edit Code">&#9998;</button>
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">

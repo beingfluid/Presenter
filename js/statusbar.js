@@ -44,8 +44,8 @@ export function renderStatusBar() {
       <button class="status-btn" data-status="zoom-in" title="Zoom In">+</button>
       <span class="status-item zoom-label">${zoomLevel}%</span>
       <span class="status-sep">|</span>
-      <button class="status-btn" data-status="grid" title="Toggle Grid">Grid</button>
-      <button class="status-btn" data-status="present" title="Present">&#9654; Present</button>
+      <button class="status-btn" data-status="grid" title="Toggle Grid" aria-label="Toggle Grid">&#9638;</button>
+      <button class="status-btn" data-status="present" title="Present" aria-label="Present">&#9654;</button>
     </div>
   `;
 }

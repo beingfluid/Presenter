@@ -331,6 +331,32 @@ body {
   font-size: 10px;
 }
 
+/* Icon buttons: keep them roughly square and visually balanced.
+   Tiny superscript "+" used by the Add-XXX buttons in the ribbon. */
+.ribbon-btn sup {
+  font-size: 9px;
+  margin-left: 1px;
+  color: var(--editor-accent);
+  font-weight: 700;
+  top: -0.4em;
+}
+.ribbon-btn.ribbon-tpl {
+  padding: 2px 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--editor-text-muted);
+}
+.ribbon-btn.ribbon-tpl:hover { color: var(--editor-text); }
+.ribbon-btn.ribbon-tpl svg { display: block; }
+
+.btn sup {
+  font-size: 9px;
+  color: var(--editor-accent);
+  font-weight: 700;
+  top: -0.4em;
+}
+
 .ribbon-danger:hover {
   background: rgba(233, 69, 96, 0.2);
   border-color: var(--editor-danger);
