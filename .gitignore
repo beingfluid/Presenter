@@ -7,3 +7,6 @@
 
 # Local dev
 *.log
+
+icons-after.png
+*.png
