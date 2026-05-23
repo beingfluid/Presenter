@@ -48,6 +48,30 @@
   --slide-accent: #ff00ff;
 }
 
+[data-theme="monokai"] {
+  --slide-bg: #272822;
+  --slide-text: #f8f8f2;
+  --slide-accent: #f92672;
+}
+
+[data-theme="dracula"] {
+  --slide-bg: #282a36;
+  --slide-text: #f8f8f2;
+  --slide-accent: #bd93f9;
+}
+
+[data-theme="pastel"] {
+  --slide-bg: #fef6e4;
+  --slide-text: #001858;
+  --slide-accent: #f582ae;
+}
+
+[data-theme="solarized"] {
+  --slide-bg: #fdf6e3;
+  --slide-text: #586e75;
+  --slide-accent: #268bd2;
+}
+
 /* Apply theme to canvas and player */
 .slide-preview[data-theme],
 .player-slide[data-theme],
@@ -70,17 +94,29 @@
 .slide-thumb[data-theme="royal"] { background: #0f0a2e; color: #d4c4e8; }
 .slide-thumb[data-theme="minimal"] { background: #f8f9fa; color: #444; }
 .slide-thumb[data-theme="magenta"] { background: #1a0a1a; color: #f0d0f0; }
+.slide-thumb[data-theme="monokai"] { background: #272822; color: #f8f8f2; }
+.slide-thumb[data-theme="dracula"] { background: #282a36; color: #f8f8f2; }
+.slide-thumb[data-theme="pastel"] { background: #fef6e4; color: #001858; }
+.slide-thumb[data-theme="solarized"] { background: #fdf6e3; color: #586e75; }
 
 /* Player theme inheritance */
-#player[data-theme="dark"] .player-slide { background: #1a1a2e; color: #eaeaea; }
-#player[data-theme="light"] .player-slide { background: #ffffff; color: #333; }
-#player[data-theme="ocean"] .player-slide { background: #0a1628; color: #b8d4e3; }
-#player[data-theme="sunset"] .player-slide { background: #2d1b3d; color: #f0d4d4; }
-#player[data-theme="forest"] .player-slide { background: #0d1f0d; color: #c4e8c4; }
-#player[data-theme="royal"] .player-slide { background: #0f0a2e; color: #d4c4e8; }
-#player[data-theme="minimal"] .player-slide { background: #f8f9fa; color: #444; }
-#player[data-theme="magenta"] .player-slide { background: #1a0a1a; color: #f0d0f0; }
+#player[data-theme="dark"] .player-stage { background: #1a1a2e; color: #eaeaea; }
+#player[data-theme="light"] .player-stage { background: #ffffff; color: #333; }
+#player[data-theme="ocean"] .player-stage { background: #0a1628; color: #b8d4e3; }
+#player[data-theme="sunset"] .player-stage { background: #2d1b3d; color: #f0d4d4; }
+#player[data-theme="monokai"] .player-stage { background: #272822; color: #f8f8f2; }
+#player[data-theme="dracula"] .player-stage { background: #282a36; color: #f8f8f2; }
+#player[data-theme="pastel"] .player-stage { background: #fef6e4; color: #001858; }
+#player[data-theme="solarized"] .player-stage { background: #fdf6e3; color: #586e75; }
+#player[data-theme="forest"] .player-stage { background: #0d1f0d; color: #c4e8c4; }
+#player[data-theme="royal"] .player-stage { background: #0f0a2e; color: #d4c4e8; }
+#player[data-theme="minimal"] .player-stage { background: #f8f9fa; color: #444; }
+#player[data-theme="magenta"] .player-stage { background: #1a0a1a; color: #f0d0f0; }
 
+#player[data-theme="monokai"] .player-text { color: #f8f8f2; }
+#player[data-theme="dracula"] .player-text { color: #f8f8f2; }
+#player[data-theme="pastel"] .player-text { color: #001858; }
+#player[data-theme="solarized"] .player-text { color: #586e75; }
 #player[data-theme="dark"] .player-text { color: #eaeaea; }
 #player[data-theme="light"] .player-text { color: #333; }
 #player[data-theme="ocean"] .player-text { color: #b8d4e3; }

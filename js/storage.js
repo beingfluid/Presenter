@@ -64,9 +64,29 @@ export function createElement(type, overrides = {}) {
       language: 'javascript',
       codeTheme: 'vs-dark',
       codeFontSize: 14
+    } : type === 'video' ? {
+      content: '',
+      autoplay: false,
+      loop: false,
+      muted: true
+    } : type === 'shape' ? {
+      content: '',
+      shapeType: 'rectangle',
+      fillColor: '#7c5cfc',
+      strokeColor: 'transparent',
+      strokeWidth: 0
+    } : type === 'embed' ? {
+      content: '',
+      sandbox: 'allow-scripts allow-same-origin allow-popups allow-forms allow-presentation'
+    } : type === 'audio' ? {
+      content: '',
+      autoplay: false,
+      loop: false,
+      controls: true
     } : {
       content: '',
-      objectFit: 'contain'
+      objectFit: 'contain',
+      filter: 'none'
     })
   };
   return { ...base, ...overrides };
@@ -146,6 +166,25 @@ function migratePresentation(pres) {
         if (el.textShadow === undefined) el.textShadow = false;
         if (el.verticalAlign === undefined) el.verticalAlign = 'top';
       }
+      if (el.type === 'shape') {
+        if (el.shapeType === undefined) el.shapeType = 'rectangle';
+        if (el.fillColor === undefined) el.fillColor = el.backgroundColor || '#7c5cfc';
+        if (el.strokeColor === undefined) el.strokeColor = 'transparent';
+        if (el.strokeWidth === undefined) el.strokeWidth = 0;
+      }
+      if (el.type === 'embed' && el.sandbox === undefined) {
+        el.sandbox = 'allow-scripts allow-same-origin allow-popups allow-forms allow-presentation';
+      }
+      if (el.type === 'video') {
+        if (el.autoplay === undefined) el.autoplay = false;
+        if (el.loop === undefined) el.loop = false;
+        if (el.muted === undefined) el.muted = true;
+      }
+      if (el.type === 'audio') {
+        if (el.autoplay === undefined) el.autoplay = false;
+        if (el.loop === undefined) el.loop = false;
+        if (el.controls === undefined) el.controls = true;
+      }
     });
   });
 }
@@ -190,6 +229,84 @@ export function importPresentation(file) {
   });
 }
 
+// Read a single image file as a data URL.
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+}
+
+// Import a presentation along with companion image files. The user may select
+// a single .json plus any number of image files; references inside the JSON to
+// `./images/foo.png` or bare `foo.png` are rewritten to the matching image's
+// data URL so the imported deck works fully offline / on any host.
+export async function importPresentationWithAssets(fileList) {
+  const files = Array.from(fileList || []);
+  const jsonFile = files.find(f => /\.json$/i.test(f.name));
+  if (!jsonFile) throw new Error('No .json file selected');
+
+  // Build name → dataURL map for non-JSON files.
+  const assetMap = {};
+  for (const f of files) {
+    if (f === jsonFile) continue;
+    if (!/^image\/|^video\/|^audio\//.test(f.type) && !/\.(png|jpe?g|gif|webp|svg|mp4|webm|ogg|mp3|wav)$/i.test(f.name)) continue;
+    assetMap[f.name.toLowerCase()] = await fileToDataURL(f);
+  }
+
+  const pres = await importPresentation(jsonFile);
+  const warnings = [];
+  let resolved = 0;
+  for (const slide of pres.slides) {
+    if (slide.background?.type === 'image' && typeof slide.background.value === 'string') {
+      const repl = resolveAsset(slide.background.value, assetMap);
+      if (repl !== slide.background.value) { slide.background.value = repl; resolved++; }
+      else if (isProblematic(slide.background.value)) warnings.push(slide.background.value);
+    }
+    for (const el of slide.elements) {
+      if ((el.type === 'image' || el.type === 'video' || el.type === 'audio') && el.content) {
+        const repl = resolveAsset(el.content, assetMap);
+        if (repl !== el.content) { el.content = repl; resolved++; }
+        else if (isProblematic(el.content)) warnings.push(el.content);
+      }
+    }
+  }
+  return { presentation: pres, resolved, warnings };
+}
+
+function resolveAsset(src, map) {
+  if (!src || src.startsWith('data:') || src.startsWith('http:') || src.startsWith('https:')) return src;
+  // Strip leading ./ and folder prefixes; try basename match against the map.
+  const cleaned = src.replace(/^\.?\//, '').split('?')[0];
+  const base = cleaned.split('/').pop().toLowerCase();
+  if (map[cleaned.toLowerCase()]) return map[cleaned.toLowerCase()];
+  if (map[base]) return map[base];
+  return src;
+}
+
+function isProblematic(src) {
+  if (!src) return false;
+  if (src.startsWith('file://')) return true;
+  // Bare relative paths only work if the host has them — flag for the user.
+  if (!src.startsWith('data:') && !src.startsWith('http:') && !src.startsWith('https:') && !src.startsWith('./Presentations/')) return true;
+  return false;
+}
+
 export function toast(message) {
   document.dispatchEvent(new CustomEvent('presenter:toast', { detail: message }));
+}
+
+// Recently-opened presentation IDs (most recent first).
+const RECENTS_KEY = 'presenter_recents';
+const RECENTS_MAX = 8;
+export function getRecents() {
+  try { return JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]'); } catch { return []; }
+}
+export function pushRecent(id) {
+  if (!id) return;
+  const list = getRecents().filter(i => i !== id);
+  list.unshift(id);
+  localStorage.setItem(RECENTS_KEY, JSON.stringify(list.slice(0, RECENTS_MAX)));
 }

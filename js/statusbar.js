@@ -30,6 +30,8 @@ export function renderStatusBar() {
 
   statusEl.innerHTML = `
     <div class="status-left">
+      <input type="text" class="status-title-input" id="presentation-title" value="${escapeAttr(state.active.title || '')}" placeholder="Untitled presentation" spellcheck="false" title="Presentation title">
+      <span class="status-sep">|</span>
       <span class="status-item">Slide ${state.currentSlideIndex + 1} / ${slideCount}</span>
       <span class="status-sep">|</span>
       <span class="status-item">${elementCount} element${elementCount !== 1 ? 's' : ''}</span>
@@ -78,5 +80,15 @@ function handleStatusInput(e) {
     document.dispatchEvent(new CustomEvent('status:zoom', { detail: zoomLevel }));
     const label = statusEl.querySelector('.zoom-label');
     if (label) label.textContent = `${zoomLevel}%`;
+  } else if (e.target.id === 'presentation-title') {
+    const state = getState();
+    if (state.active) {
+      state.active.title = e.target.value;
+      document.dispatchEvent(new CustomEvent('title:changed', { detail: e.target.value }));
+    }
   }
+}
+
+function escapeAttr(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }

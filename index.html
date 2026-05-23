@@ -10,6 +10,11 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/transitions.css">
+  <link rel="stylesheet" href="css/features.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#7c5cfc">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 </head>
 <body>
@@ -122,6 +127,24 @@
     help.addEventListener('click', (e) => {
       if (e.target === help) help.hidden = true;
     });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+      // When the service worker activates a new cache version it pings us
+      // with {type:'sw-updated'}. We then force a single reload so the page
+      // re-fetches fresh JS/CSS instead of continuing to run the previous
+      // cached bundle (the cause of "blank player" after an update).
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener('message', (e) => {
+        if (e.data?.type === 'sw-updated' && !reloaded) {
+          reloaded = true;
+          location.reload();
+        }
+      });
+    }
   </script>
 </body>
 </html>

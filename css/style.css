@@ -487,6 +487,10 @@ body {
 .canvas-element.selected {
   border-color: var(--editor-accent);
   box-shadow: 0 0 0 1px rgba(124, 92, 252, 0.2);
+  /* Lift the selected element above all siblings so its resize handles are
+     never covered by an overlapping element with a higher z-index. Uses
+     !important to override the inline z-index set by renderElement(). */
+  z-index: 9999 !important;
 }
 
 .canvas-element:active {
@@ -573,7 +577,10 @@ body {
 .resize-handle.e { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
 .resize-handle.w { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
 
-/* Alignment Guides */
+/* Alignment Guides — shown while dragging an element when its edge or
+   center lines up with another element / the slide canvas. Edge matches
+   are magenta, center matches are azure, with a small label badge near
+   the top/left so the kind of snap is obvious at a glance. */
 .alignment-guides {
   position: absolute;
   inset: 0;
@@ -583,23 +590,61 @@ body {
 
 .guide {
   position: absolute;
-  background: #ff4488;
+  pointer-events: none;
+  animation: guide-pop 120ms ease-out;
 }
 
 .guide-v {
-  width: 1px;
-  top: 0;
-  bottom: 0;
+  width: 0;
+  top: -4px;
+  bottom: -4px;
+  border-left: 1.5px dashed #ff3d8a;
+  box-shadow: 0 0 6px rgba(255, 61, 138, 0.55);
 }
 
 .guide-h {
-  height: 1px;
-  left: 0;
-  right: 0;
+  height: 0;
+  left: -4px;
+  right: -4px;
+  border-top: 1.5px dashed #ff3d8a;
+  box-shadow: 0 0 6px rgba(255, 61, 138, 0.55);
 }
 
-.guide-center {
-  background: #44aaff;
+.guide-center.guide-v {
+  border-left-color: #38b6ff;
+  border-left-style: solid;
+  box-shadow: 0 0 8px rgba(56, 182, 255, 0.7);
+}
+
+.guide-center.guide-h {
+  border-top-color: #38b6ff;
+  border-top-style: solid;
+  box-shadow: 0 0 8px rgba(56, 182, 255, 0.7);
+}
+
+.guide-label {
+  position: absolute;
+  font: 600 9px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #ff3d8a;
+  padding: 3px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.guide-center .guide-label {
+  background: #38b6ff;
+}
+
+.guide-v .guide-label { top: 4px; left: 4px; }
+.guide-h .guide-label { left: 4px; top: 4px; transform: translateY(-50%); }
+
+@keyframes guide-pop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* Properties Panel */
@@ -909,6 +954,39 @@ body {
   justify-content: center;
 }
 
+/* Instructor Mode: windowed presentation so the user can still see browser
+   tabs, dock and OS taskbar. Letterbox area uses a translucent backdrop
+   instead of opaque black so it feels like an overlay, not full takeover. */
+#player.instructor {
+  inset: 56px 24px 24px 24px;
+  background: rgba(8, 8, 14, 0.92);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+#player.instructor::before {
+  content: 'Instructor View · press Esc to exit';
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: 600 11px/1 -apple-system, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.7);
+  background: rgba(124, 92, 252, 0.18);
+  border: 1px solid rgba(124, 92, 252, 0.35);
+  padding: 5px 12px;
+  border-radius: 999px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 1;
+  animation: instructor-hint-fade 600ms ease 3.5s forwards;
+}
+@keyframes instructor-hint-fade {
+  to { opacity: 0; visibility: hidden; }
+}
+
 #player[hidden] { display: none; }
 
 #slide-container {
@@ -921,6 +999,24 @@ body {
 .player-slide {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+}
+
+/* Fixed 960x540 logical canvas — sized identically to the editor's
+   .slide-preview so every element renders at the same pixel coords.
+   The transform: scale() in fitPlayerStage() handles fitting it to the
+   visible player area while preserving aspect ratio (letterboxing). */
+.player-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 960px;
+  height: 540px;
+  transform-origin: center center;
+  transform: translate(-50%, -50%) scale(1);
+  background: var(--slide-bg, #fff);
+  overflow: hidden;
+  will-change: transform;
 }
 
 .player-element {
@@ -1460,6 +1556,22 @@ body {
 
 .status-item { white-space: nowrap; }
 .status-sep { color: var(--editor-border); }
+
+.status-title-input {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--editor-text);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  min-width: 120px;
+  max-width: 320px;
+  outline: none;
+  font-family: inherit;
+}
+.status-title-input:hover { border-color: var(--editor-border); background: rgba(255,255,255,0.04); }
+.status-title-input:focus { border-color: var(--editor-accent); background: var(--editor-bg); }
 
 .status-btn {
   padding: 2px 8px;

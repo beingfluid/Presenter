@@ -1,5 +1,5 @@
 import { getState, setActivePresentation, switchMode, save, getCurrentSlide } from './app.js';
-import { createPresentation, exportPresentation, importPresentation, toast } from './storage.js';
+import { createPresentation, exportPresentation, importPresentation, importPresentationWithAssets, toast, getRecents } from './storage.js';
 
 let menuBarEl;
 let openMenu = null;
@@ -14,6 +14,13 @@ export function initMenu() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeMenus();
   });
+  document.addEventListener('menu:rebuild', () => {
+    menuBarEl.innerHTML = buildMenuBar();
+  });
+}
+
+export function rebuildMenuBar() {
+  if (menuBarEl) menuBarEl.innerHTML = buildMenuBar();
 }
 
 function buildMenuBar() {
@@ -25,6 +32,10 @@ function buildMenuBar() {
           <button data-cmd="new-presentation">New Presentation</button>
           <button data-cmd="open-presentation">Open...</button>
           <button data-cmd="open-library">Open from Library...</button>
+          <div class="has-flyout">
+            <button data-cmd="recent-noop">Recently Opened &#9656;</button>
+            <div class="recents-flyout">${renderRecentsMarkup(state)}</div>
+          </div>
           <div class="menu-divider"></div>
           <button data-cmd="rename-presentation">Rename</button>
           <button data-cmd="duplicate-presentation">Duplicate Presentation</button>
@@ -32,6 +43,9 @@ function buildMenuBar() {
           <button data-cmd="import">Import JSON</button>
           <button data-cmd="export">Export JSON</button>
           <button data-cmd="export-html">Export as Standalone HTML</button>
+          <button data-cmd="export-png">Export Current Slide as PNG</button>
+          <button data-cmd="export-png-all">Export All Slides as PNG</button>
+          <button data-cmd="export-pdf">Export as PDF / Print...</button>
           <div class="menu-divider"></div>
           <button data-cmd="delete-presentation" class="menu-danger">Delete Presentation</button>
         </div>
@@ -46,6 +60,8 @@ function buildMenuBar() {
           <button data-cmd="paste">Paste <span class="shortcut">Ctrl+V</span></button>
           <button data-cmd="duplicate-el">Duplicate <span class="shortcut">Ctrl+D</span></button>
           <button data-cmd="delete-el">Delete <span class="shortcut">Del</span></button>
+          <div class="menu-divider"></div>
+          <button data-cmd="find-replace">Find & Replace <span class="shortcut">Ctrl+F</span></button>
           <div class="menu-divider"></div>
           <button data-cmd="select-all">Select All <span class="shortcut">Ctrl+A</span></button>
         </div>
@@ -70,6 +86,9 @@ function buildMenuBar() {
           <button data-cmd="insert-image">Image</button>
           <button data-cmd="insert-code">Code Block</button>
           <button data-cmd="insert-shape">Shape</button>
+          <button data-cmd="insert-embed">Embed (YouTube/Web)</button>
+          <button data-cmd="insert-video">Video</button>
+          <button data-cmd="insert-audio">Audio</button>
           <div class="menu-divider"></div>
           <button data-cmd="insert-slide">New Slide <span class="shortcut">Ctrl+N</span></button>
           <button data-cmd="duplicate-slide">Duplicate Slide</button>
@@ -101,13 +120,12 @@ function buildMenuBar() {
         <div class="menu-dropdown" data-dropdown="present">
           <button data-cmd="present-start">From Beginning <span class="shortcut">F5</span></button>
           <button data-cmd="present-current">From Current Slide</button>
+          <button data-cmd="present-instructor">Instructor View (windowed) <span class="shortcut">Shift+F5</span></button>
           <div class="menu-divider"></div>
           <button data-cmd="present-rehearse">Rehearse (with timer)</button>
+          <button data-cmd="speaker-view">Speaker View <span class="shortcut">S</span></button>
         </div>
       </div>
-    </div>
-    <div class="menu-center">
-      <input type="text" class="title-input" id="presentation-title" value="${state.active?.title || ''}" spellcheck="false">
     </div>
     <div class="menu-right">
       <span class="save-status" id="save-status">Saved</span>
@@ -120,10 +138,34 @@ export function updateMenuTitle() {
   if (input) input.value = getState().active?.title || '';
 }
 
+function renderRecentsMarkup(state) {
+  const recents = getRecents();
+  const items = recents
+    .map(id => state.presentations.find(p => p.id === id))
+    .filter(Boolean);
+  if (!items.length) return '<div class="menu-empty">No recent presentations</div>';
+  return items.slice(0, 8).map(p =>
+    `<button data-recent="${p.id}" title="${escapeAttr(p.title)}">${escapeHtml(p.title)} <span style="opacity:0.5;font-size:10px">&nbsp;&middot; ${p.slides?.length || 0} slides</span></button>`
+  ).join('');
+}
+
+function escapeHtml(s) { return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+
 function handleMenuClick(e) {
   const trigger = e.target.closest('.menu-trigger');
   const cmd = e.target.closest('[data-cmd]');
   const titleInput = e.target.closest('.title-input');
+  const recent = e.target.closest('[data-recent]');
+
+  if (recent) {
+    e.stopPropagation();
+    setActivePresentation(recent.dataset.recent);
+    closeMenus();
+    document.dispatchEvent(new CustomEvent('menu:refresh'));
+    toast('Opened recent presentation');
+    return;
+  }
 
   if (titleInput) {
     titleInput.addEventListener('change', () => {
@@ -221,16 +263,30 @@ function executeCommand(cmd) {
     }
     case 'import': {
       const input = document.createElement('input');
-      input.type = 'file'; input.accept = '.json';
+      input.type = 'file';
+      // Accept the JSON plus optional companion images / media so referenced
+      // local files resolve to data URLs and the deck travels as-is.
+      input.accept = '.json,image/*,video/*,audio/*';
+      input.multiple = true;
       input.onchange = async () => {
         try {
-          const pres = await importPresentation(input.files[0]);
+          const files = Array.from(input.files);
+          const hasMedia = files.some(f => !/\.json$/i.test(f.name));
+          let pres, resolved = 0, warnings = [];
+          if (hasMedia) {
+            ({ presentation: pres, resolved, warnings } = await importPresentationWithAssets(files));
+          } else {
+            pres = await importPresentation(files[0]);
+          }
           state.presentations.push(pres);
           state.active = pres;
           state.currentSlideIndex = 0;
           save();
           dispatch('menu:refresh');
-          toast('Imported!');
+          let msg = 'Imported!';
+          if (resolved) msg += ` (${resolved} asset${resolved === 1 ? '' : 's'} embedded)`;
+          if (warnings.length) msg += ` · ${warnings.length} unresolved reference${warnings.length === 1 ? '' : 's'}`;
+          toast(msg);
         } catch (e) { toast(e.message); }
       };
       input.click();
@@ -238,6 +294,9 @@ function executeCommand(cmd) {
     }
     case 'export': exportPresentation(state.active); break;
     case 'export-html': exportStandaloneHTML(); break;
+    case 'export-png': dispatch('export:png'); break;
+    case 'export-png-all': dispatch('export:png-all'); break;
+    case 'export-pdf': dispatch('export:pdf'); break;
 
     // Edit
     case 'undo': dispatch('presenter:undo'); break;
@@ -248,6 +307,7 @@ function executeCommand(cmd) {
     case 'duplicate-el': dispatch('ribbon:duplicate'); break;
     case 'delete-el': dispatch('presenter:deleteelement'); break;
     case 'select-all': dispatch('presenter:selectall'); break;
+    case 'find-replace': dispatch('presenter:find'); break;
 
     // View
     case 'toggle-grid': dispatch('view:toggle-grid'); break;
@@ -264,6 +324,9 @@ function executeCommand(cmd) {
     case 'insert-image': dispatch('ribbon:add-image'); break;
     case 'insert-code': dispatch('ribbon:add-code'); break;
     case 'insert-shape': dispatch('ribbon:add-shape'); break;
+    case 'insert-embed': dispatch('ribbon:add-embed'); break;
+    case 'insert-video': dispatch('ribbon:add-video'); break;
+    case 'insert-audio': dispatch('ribbon:add-audio'); break;
     case 'insert-slide': dispatch('presenter:addslide'); break;
     case 'duplicate-slide': dispatch('presenter:duplicateslide'); break;
 
@@ -290,8 +353,16 @@ function executeCommand(cmd) {
     case 'present-current':
       switchMode('player');
       break;
+    case 'present-instructor':
+      // Windowed presentation — keeps browser tabs + OS taskbar visible so
+      // the instructor can tab-switch during a demo.
+      switchMode('player', { instructor: true });
+      break;
     case 'present-rehearse':
       switchMode('player');
+      break;
+    case 'speaker-view':
+      import('./speaker.js').then(m => m.openSpeakerView());
       break;
   }
 }
@@ -365,9 +436,9 @@ async function openLibraryPanel() {
       <h3>Presentation Library</h3>
       <div class="library-grid">
         ${manifest.map(item => `
-          <button class="library-item" data-file="${item.file}">
+          <button class="library-item" data-folder="${escapeAttr(item.folder || '')}" data-file="${escapeAttr(item.file || '')}">
             <span class="library-icon">&#128196;</span>
-            <span class="library-title">${item.title}</span>
+            <span class="library-title">${escapeHtml(item.title)}</span>
           </button>
         `).join('')}
       </div>
@@ -375,10 +446,14 @@ async function openLibraryPanel() {
 
     panel.querySelectorAll('.library-item').forEach(btn => {
       btn.addEventListener('click', async () => {
+        const folder = btn.dataset.folder;
         const file = btn.dataset.file;
+        const url = folder
+          ? `Presentations/${folder}/presentation.json`
+          : `Presentations/${file}`;
         try {
-          const r = await fetch(`Presentations/${file}`);
-          if (!r.ok) throw new Error(`Failed to load ${file}`);
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`Failed to load ${url}`);
           const data = await r.json();
           if (!data.slides || !Array.isArray(data.slides)) throw new Error('Invalid presentation');
           if (!data.id) data.id = crypto.randomUUID();

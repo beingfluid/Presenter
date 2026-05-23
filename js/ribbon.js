@@ -3,6 +3,7 @@ import { createElement, toast } from './storage.js';
 import { TEMPLATES, saveCustomTemplate } from './templates.js';
 import { FONT_LIST, loadFont } from './fonts.js';
 import { CODE_LANGUAGES, CODE_THEMES } from './code.js';
+import { SHAPE_TYPES, shapeSwatchSVG } from './shapes.js';
 
 let ribbonEl;
 let selectedElementId = null;
@@ -30,6 +31,14 @@ export function renderRibbon() {
         renderTextRibbon(el);
       } else if (el.type === 'code') {
         renderCodeRibbon(el);
+      } else if (el.type === 'shape') {
+        renderShapeRibbon(el);
+      } else if (el.type === 'embed') {
+        renderEmbedRibbon(el);
+      } else if (el.type === 'video') {
+        renderVideoRibbon(el);
+      } else if (el.type === 'audio') {
+        renderAudioRibbon(el);
       } else {
         renderImageRibbon(el);
       }
@@ -51,6 +60,9 @@ function renderSlideRibbon(slide) {
       <button class="ribbon-btn" data-ribbon="add-image">+ Image</button>
       <button class="ribbon-btn" data-ribbon="add-code">+ Code</button>
       <button class="ribbon-btn" data-ribbon="add-shape">+ Shape</button>
+      <button class="ribbon-btn" data-ribbon="add-embed">+ Embed</button>
+      <button class="ribbon-btn" data-ribbon="add-video">+ Video</button>
+      <button class="ribbon-btn" data-ribbon="add-audio">+ Audio</button>
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
@@ -115,11 +127,17 @@ function renderTextRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center on slide">&#8596;</button>
-      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Middle on slide">&#8597;</button>
+      <button class="ribbon-btn" data-ribbon="pos-align-left" title="Align Left">&#8676;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center horizontally">&#8596;</button>
+      <button class="ribbon-btn" data-ribbon="pos-align-right" title="Align Right">&#8677;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Center vertically">&#8597;</button>
+      <span class="ribbon-sep-sm"></span>
       <button class="ribbon-btn" data-ribbon="duplicate" title="Duplicate">&#9851;</button>
-      <button class="ribbon-btn" data-ribbon="bring-front" title="Front">&#8679;</button>
-      <button class="ribbon-btn" data-ribbon="send-back" title="Back">&#8681;</button>
+      <button class="ribbon-btn" data-ribbon="bring-front" title="To Front">&#8679;&#8679;</button>
+      <button class="ribbon-btn" data-ribbon="bring-forward" title="Bring Forward">&#8679;</button>
+      <button class="ribbon-btn" data-ribbon="send-backward" title="Send Backward">&#8681;</button>
+      <button class="ribbon-btn" data-ribbon="send-back" title="To Back">&#8681;&#8681;</button>
+      <button class="ribbon-btn ${el.locked ? 'active' : ''}" data-ribbon="lock" title="Lock / Unlock">${el.locked ? '&#128274;' : '&#128275;'}</button>
       <button class="ribbon-btn ribbon-danger" data-ribbon="delete" title="Delete">&#128465;</button>
     </div>
   `;
@@ -155,16 +173,133 @@ function renderImageRibbon(el) {
     </div>
     <div class="ribbon-sep"></div>
     <div class="ribbon-section">
-      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center H">&#8596;</button>
-      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Center V">&#8597;</button>
+      <button class="ribbon-btn" data-ribbon="replace-image" title="Replace image from file">&#128247; Replace</button>
+      <button class="ribbon-btn" data-ribbon="flip-h" title="Flip Horizontal">&#8646;</button>
+      <button class="ribbon-btn" data-ribbon="flip-v" title="Flip Vertical">&#8645;</button>
+      <span class="ribbon-sep-sm"></span>
       <button class="ribbon-btn" data-ribbon="size-full" title="Full">Full</button>
       <button class="ribbon-btn" data-ribbon="size-half-left" title="Left Half">L&#189;</button>
       <button class="ribbon-btn" data-ribbon="size-half-right" title="Right Half">R&#189;</button>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <button class="ribbon-btn" data-ribbon="pos-align-left" title="Align Left">&#8676;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center H">&#8596;</button>
+      <button class="ribbon-btn" data-ribbon="pos-align-right" title="Align Right">&#8677;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Center V">&#8597;</button>
       <span class="ribbon-sep-sm"></span>
       <button class="ribbon-btn" data-ribbon="duplicate" title="Duplicate">&#9851;</button>
-      <button class="ribbon-btn" data-ribbon="bring-front" title="Front">&#8679;</button>
-      <button class="ribbon-btn" data-ribbon="send-back" title="Back">&#8681;</button>
+      <button class="ribbon-btn" data-ribbon="bring-forward" title="Bring Forward">&#8679;</button>
+      <button class="ribbon-btn" data-ribbon="send-backward" title="Send Backward">&#8681;</button>
+      <button class="ribbon-btn ${el.locked ? 'active' : ''}" data-ribbon="lock" title="Lock / Unlock">${el.locked ? '&#128274;' : '&#128275;'}</button>
       <button class="ribbon-btn ribbon-danger" data-ribbon="delete" title="Delete">&#128465;</button>
+    </div>
+  `;
+}
+
+function renderShapeRibbon(el) {
+  const swatches = SHAPE_TYPES.map(s =>
+    `<button class="ribbon-btn shape-swatch ${s.id === el.shapeType ? 'active' : ''}" data-ribbon="set-shape-${s.id}" title="${s.name}" style="padding:2px 4px">${shapeSwatchSVG(s.id)}</button>`
+  ).join('');
+  ribbonEl.innerHTML = `
+    <div class="ribbon-section">
+      <span class="ribbon-label">Shape</span>
+      ${swatches}
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <span class="ribbon-label">Fill</span>
+      <input type="color" class="ribbon-color" data-rprop="fillColor" value="${el.fillColor || '#7c5cfc'}" title="Fill">
+      <span class="ribbon-label">Stroke</span>
+      <input type="color" class="ribbon-color" data-rprop="strokeColor" value="${el.strokeColor && el.strokeColor !== 'transparent' ? el.strokeColor : '#ffffff'}" title="Stroke Color">
+      <input type="number" class="ribbon-input ribbon-num-sm" data-rprop="strokeWidth" value="${el.strokeWidth || 0}" min="0" max="20" title="Stroke Width">
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <span class="ribbon-label">Opacity</span>
+      <input type="range" class="ribbon-range" data-rprop="opacity" min="0" max="1" step="0.05" value="${el.opacity}">
+      <input type="number" class="ribbon-input ribbon-num-sm" data-rprop="rotation" value="${el.rotation || 0}" min="-360" max="360" step="5" title="Rotate">
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <button class="ribbon-btn" data-ribbon="flip-h" title="Flip Horizontal">&#8646;</button>
+      <button class="ribbon-btn" data-ribbon="flip-v" title="Flip Vertical">&#8645;</button>
+      <span class="ribbon-sep-sm"></span>
+      <button class="ribbon-btn" data-ribbon="pos-align-left" title="Align Left">&#8676;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-h" title="Center H">&#8596;</button>
+      <button class="ribbon-btn" data-ribbon="pos-align-right" title="Align Right">&#8677;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-v" title="Center V">&#8597;</button>
+      <span class="ribbon-sep-sm"></span>
+      <button class="ribbon-btn" data-ribbon="duplicate" title="Duplicate">&#9851;</button>
+      <button class="ribbon-btn" data-ribbon="bring-forward" title="Bring Forward">&#8679;</button>
+      <button class="ribbon-btn" data-ribbon="send-backward" title="Send Backward">&#8681;</button>
+      <button class="ribbon-btn ${el.locked ? 'active' : ''}" data-ribbon="lock" title="Lock / Unlock">${el.locked ? '&#128274;' : '&#128275;'}</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete" title="Delete">&#128465;</button>
+    </div>
+  `;
+}
+
+function renderEmbedRibbon(el) {
+  ribbonEl.innerHTML = `
+    <div class="ribbon-section">
+      <span class="ribbon-label">Embed URL</span>
+      <input type="text" class="ribbon-input" data-rprop="content" value="${el.content || ''}" style="flex:1;min-width:260px" placeholder="https://www.youtube.com/embed/...">
+      <button class="ribbon-btn" data-ribbon="edit-url" title="Edit URL">&#9998;</button>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <span class="ribbon-label">Opacity</span>
+      <input type="range" class="ribbon-range" data-rprop="opacity" min="0" max="1" step="0.05" value="${el.opacity}">
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <button class="ribbon-btn" data-ribbon="size-full">Full</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-h">&#8596;</button>
+      <button class="ribbon-btn" data-ribbon="pos-center-v">&#8597;</button>
+      <button class="ribbon-btn" data-ribbon="duplicate">&#9851;</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete">&#128465;</button>
+    </div>
+  `;
+}
+
+function renderVideoRibbon(el) {
+  ribbonEl.innerHTML = `
+    <div class="ribbon-section">
+      <span class="ribbon-label">Video URL</span>
+      <input type="text" class="ribbon-input" data-rprop="content" value="${el.content || ''}" style="flex:1;min-width:240px" placeholder=".mp4 / .webm / .ogg">
+      <button class="ribbon-btn" data-ribbon="edit-url">&#9998;</button>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <label class="ribbon-check"><input type="checkbox" data-rprop="autoplay" ${el.autoplay ? 'checked' : ''}> Autoplay</label>
+      <label class="ribbon-check"><input type="checkbox" data-rprop="loop" ${el.loop ? 'checked' : ''}> Loop</label>
+      <label class="ribbon-check"><input type="checkbox" data-rprop="muted" ${el.muted ? 'checked' : ''}> Muted</label>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <button class="ribbon-btn" data-ribbon="size-full">Full</button>
+      <button class="ribbon-btn" data-ribbon="duplicate">&#9851;</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete">&#128465;</button>
+    </div>
+  `;
+}
+
+function renderAudioRibbon(el) {
+  ribbonEl.innerHTML = `
+    <div class="ribbon-section">
+      <span class="ribbon-label">Audio URL</span>
+      <input type="text" class="ribbon-input" data-rprop="content" value="${el.content || ''}" style="flex:1;min-width:240px" placeholder=".mp3 / .ogg / .wav">
+      <button class="ribbon-btn" data-ribbon="edit-url">&#9998;</button>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <label class="ribbon-check"><input type="checkbox" data-rprop="autoplay" ${el.autoplay ? 'checked' : ''}> Autoplay</label>
+      <label class="ribbon-check"><input type="checkbox" data-rprop="loop" ${el.loop ? 'checked' : ''}> Loop</label>
+    </div>
+    <div class="ribbon-sep"></div>
+    <div class="ribbon-section">
+      <button class="ribbon-btn" data-ribbon="duplicate">&#9851;</button>
+      <button class="ribbon-btn ribbon-danger" data-ribbon="delete">&#128465;</button>
     </div>
   `;
 }
@@ -220,8 +355,8 @@ function handleRibbonInput(e) {
   const el = getSelectedElement();
   if (!el) return;
 
-  let value = e.target.value;
-  if (['fontSize','borderWidth','borderRadius'].includes(prop)) {
+  let value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+  if (['fontSize','borderWidth','borderRadius','strokeWidth','rotation'].includes(prop)) {
     value = parseFloat(value);
     if (isNaN(value)) return;
   } else if (prop === 'opacity') {
@@ -241,8 +376,8 @@ function handleRibbonChange(e) {
   const el = getSelectedElement();
   if (!el) return;
 
-  let value = e.target.value;
-  if (['fontSize','borderWidth','borderRadius'].includes(prop)) {
+  let value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+  if (['fontSize','borderWidth','borderRadius','strokeWidth','rotation'].includes(prop)) {
     value = parseFloat(value);
   } else if (prop === 'opacity') {
     value = parseFloat(value);
@@ -287,7 +422,21 @@ function handleRibbonClick(e) {
   if (action === 'add-image') { document.dispatchEvent(new CustomEvent('ribbon:add-image')); return; }
   if (action === 'add-shape') { document.dispatchEvent(new CustomEvent('ribbon:add-shape')); return; }
   if (action === 'add-code') { document.dispatchEvent(new CustomEvent('ribbon:add-code')); return; }
+  if (action === 'add-embed') { document.dispatchEvent(new CustomEvent('ribbon:add-embed')); return; }
+  if (action === 'add-video') { document.dispatchEvent(new CustomEvent('ribbon:add-video')); return; }
+  if (action === 'add-audio') { document.dispatchEvent(new CustomEvent('ribbon:add-audio')); return; }
   if (action === 'edit-code') { document.dispatchEvent(new CustomEvent('ribbon:edit-code')); return; }
+
+  if (action.startsWith('set-shape-')) {
+    const st = action.replace('set-shape-', '');
+    if (el && el.type === 'shape') { el.shapeType = st; save(); notify(); }
+    return;
+  }
+  if (action === 'edit-url' && el) {
+    const url = prompt(el.type === 'embed' ? 'Embed URL:' : el.type === 'video' ? 'Video URL:' : 'URL:', el.content || '');
+    if (url !== null) { el.content = url; save(); notify(); }
+    return;
+  }
 
   if (!el) return;
 
@@ -325,6 +474,25 @@ function handleRibbonClick(e) {
     // Layer
     case 'bring-front': el.zIndex = Math.max(...slide.elements.map(e => e.zIndex || 0)) + 1; break;
     case 'send-back': el.zIndex = Math.min(...slide.elements.map(e => e.zIndex || 0)) - 1; break;
+    case 'bring-forward': document.dispatchEvent(new CustomEvent('element:bring-forward')); return;
+    case 'send-backward': document.dispatchEvent(new CustomEvent('element:send-backward')); return;
+
+    // Lock
+    case 'lock': el.locked = !el.locked; break;
+
+    // Flip
+    case 'flip-h': document.dispatchEvent(new CustomEvent('element:flip', { detail: 'h' })); return;
+    case 'flip-v': document.dispatchEvent(new CustomEvent('element:flip', { detail: 'v' })); return;
+
+    // Align to slide edges (named pos-align-* to avoid colliding with the
+    // text-align cases above which are used by the text ribbon).
+    case 'pos-align-left':   document.dispatchEvent(new CustomEvent('element:align', { detail: 'left' })); return;
+    case 'pos-align-right':  document.dispatchEvent(new CustomEvent('element:align', { detail: 'right' })); return;
+    case 'pos-align-top':    document.dispatchEvent(new CustomEvent('element:align', { detail: 'top' })); return;
+    case 'pos-align-bottom': document.dispatchEvent(new CustomEvent('element:align', { detail: 'bottom' })); return;
+
+    // Image-specific replace
+    case 'replace-image': document.dispatchEvent(new CustomEvent('element:replace-image')); return;
 
     // Operations
     case 'duplicate': document.dispatchEvent(new CustomEvent('ribbon:duplicate')); return;

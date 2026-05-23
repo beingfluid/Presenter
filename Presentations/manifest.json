@@ -1,5 +1,5 @@
 [
-  { "file": "jasmine-effect.json", "title": "The Jasmine Effect" },
-  { "file": "The_Jasmine_Effect2.json", "title": "The Jasmine Effect 2" },
-  { "file": "The_Jasmine_Effect3.json", "title": "The Jasmine Effect 3" }
+  { "folder": "jasmine-effect",        "title": "The Jasmine Effect" },
+  { "folder": "the-jasmine-effect-2",  "title": "The Jasmine Effect 2" },
+  { "folder": "the-jasmine-effect-3",  "title": "The Jasmine Effect 3" }
 ]

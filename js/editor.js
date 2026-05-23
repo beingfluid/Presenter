@@ -8,6 +8,11 @@ import { loadMonaco, createCodeEditor, destroyAllEditors, CODE_LANGUAGES, CODE_T
 import { initContextMenu } from './contextmenu.js';
 import { initStatusBar, renderStatusBar, setZoom, getZoom } from './statusbar.js';
 import { initLayers, renderLayers, setLayersSelection, toggleLayersPanel } from './layers.js';
+import { SHAPE_TYPES, renderShapeSVG, shapeSwatchSVG } from './shapes.js';
+import { initDragDrop } from './dnd.js';
+import { openFindReplace } from './findreplace.js';
+import { exportSlidePNG, exportAllPNGs, exportPDF } from './exports.js';
+import { FILTERS, getFilterCSS } from './imagefilters.js';
 
 let slideListEl, canvasEl, toolbarEl, propertiesEl;
 let selectedElementId = null;
@@ -15,6 +20,10 @@ let dragState = null;
 let templatePanelOpen = false;
 let lastTemplateIndex = 0;
 let clipboard = null;
+// Clipboard for "Copy Style" / "Paste Style". Holds a plain object of visual
+// style props from the last copied element; type-agnostic so cross-type pastes
+// (e.g. shape → text) still transfer fill / opacity / border.
+let styleClipboard = null;
 
 // === UNDO/REDO ===
 const undoStack = [];
@@ -142,8 +151,15 @@ export function initEditor() {
 
   document.addEventListener('ribbon:add-text', () => addTextElement());
   document.addEventListener('ribbon:add-image', () => addImageElement());
-  document.addEventListener('ribbon:add-shape', () => addShapeElement());
+  document.addEventListener('ribbon:add-shape', (e) => addShapeElement(e.detail?.shapeType));
   document.addEventListener('ribbon:add-code', () => addCodeElement());
+  document.addEventListener('ribbon:add-embed', () => addEmbedElement());
+  document.addEventListener('ribbon:add-video', () => addVideoElement());
+  document.addEventListener('ribbon:add-audio', () => addAudioElement());
+  document.addEventListener('presenter:find', () => openFindReplace());
+  document.addEventListener('export:png', () => exportSlidePNG(getState().currentSlideIndex));
+  document.addEventListener('export:png-all', () => exportAllPNGs());
+  document.addEventListener('export:pdf', () => exportPDF());
   document.addEventListener('ribbon:edit-code', () => {
     const slide = getCurrentSlide();
     const el = slide?.elements.find(e => e.id === selectedElementId);
@@ -154,11 +170,22 @@ export function initEditor() {
   document.addEventListener('ribbon:updated', () => renderEditor());
   document.addEventListener('ribbon:set-last-template', (e) => { lastTemplateIndex = e.detail; });
 
+  // Element transforms / arranging — usable from ribbon, context menu and panel.
+  document.addEventListener('element:flip', (e) => flipSelected(e.detail));
+  document.addEventListener('element:align', (e) => alignSelectedToSlide(e.detail));
+  document.addEventListener('element:bring-forward', () => stepZ(1));
+  document.addEventListener('element:send-backward', () => stepZ(-1));
+  document.addEventListener('element:copy-style', () => copyElementStyle());
+  document.addEventListener('element:paste-style', () => pasteElementStyle());
+  document.addEventListener('element:replace-image', () => replaceImageForSelected());
+  document.addEventListener('element:reset-rotation', () => { const el = getSelectedEl(); if (el) { el.rotation = 0; save(); renderEditor(); } });
+
   canvasEl.addEventListener('mousedown', handleCanvasMouseDown);
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseUp);
   canvasEl.addEventListener('dblclick', handleCanvasDblClick);
   setupDragAndDrop();
+  initDragDrop(canvasEl, renderEditor);
 
   setTimeout(() => saveUndoState(), 100);
 }
@@ -270,7 +297,12 @@ function renderElement(el) {
   const locked = el.locked ? 'locked' : '';
   let style = `left:${el.x}%;top:${el.y}%;width:${el.width}%;height:${el.height}%;opacity:${el.opacity};z-index:${el.zIndex};`;
 
-  if (el.rotation) style += `transform:rotate(${el.rotation}deg);`;
+  // Compose rotation + flip into a single transform property so they don't
+  // overwrite each other.
+  const transforms = [];
+  if (el.rotation) transforms.push(`rotate(${el.rotation}deg)`);
+  if (el.flipX || el.flipY) transforms.push(`scale(${el.flipX ? -1 : 1}, ${el.flipY ? -1 : 1})`);
+  if (transforms.length) style += `transform:${transforms.join(' ')};`;
   if (el.backgroundColor) style += `background-color:${el.backgroundColor};`;
   if (el.borderWidth) style += `border:${el.borderWidth}px ${el.borderStyle} ${el.borderColor};`;
   if (el.borderRadius) style += `border-radius:${el.borderRadius}px;`;
@@ -305,10 +337,51 @@ function renderElement(el) {
       </div>`;
   }
 
+  if (el.type === 'shape') {
+    return `
+      <div class="canvas-element ${selected} ${locked}" data-id="${el.id}" style="${style}">
+        <div class="element-content shape-wrap" style="overflow:visible">${renderShapeSVG(el, { editor: true })}</div>
+        ${selected ? renderHandles() : ''}
+      </div>`;
+  }
+
+  if (el.type === 'embed') {
+    const url = el.content;
+    return `
+      <div class="canvas-element ${selected} ${locked}" data-id="${el.id}" style="${style}">
+        <div class="element-content embed-element">
+          ${url ? `<div class="embed-placeholder"><span class="ph-icon">&#127760;</span><span>${escapeHtml(url)}</span><span style="opacity:0.5;font-size:10px">(plays in presentation)</span></div>` : '<div class="embed-placeholder"><span class="ph-icon">&#127760;</span>Double-click to set embed URL</div>'}
+        </div>
+        ${selected ? renderHandles() : ''}
+      </div>`;
+  }
+
+  if (el.type === 'video') {
+    const url = el.content;
+    return `
+      <div class="canvas-element ${selected} ${locked}" data-id="${el.id}" style="${style}">
+        <div class="element-content video-element">
+          ${url ? `<div class="video-placeholder"><span class="ph-icon">&#127916;</span><span>${escapeHtml(url.split('/').pop())}</span></div>` : '<div class="video-placeholder"><span class="ph-icon">&#127916;</span>Double-click to set video URL</div>'}
+        </div>
+        ${selected ? renderHandles() : ''}
+      </div>`;
+  }
+
+  if (el.type === 'audio') {
+    const url = el.content;
+    return `
+      <div class="canvas-element ${selected} ${locked}" data-id="${el.id}" style="${style}">
+        <div class="element-content audio-element">
+          ${url ? `<audio src="${escapeHtml(url)}" controls preload="none"></audio>` : '<div class="audio-placeholder"><span class="ph-icon">&#127925;</span>Double-click to set audio URL</div>'}
+        </div>
+        ${selected ? renderHandles() : ''}
+      </div>`;
+  }
+
   return `
     <div class="canvas-element ${selected} ${locked}" data-id="${el.id}" style="${style}">
       <div class="element-content image-element">
-        ${el.content ? `<img src="${el.content}" style="object-fit:${el.objectFit}" draggable="false" alt="">` : '<div class="image-placeholder">Double-click to add image</div>'}
+        ${el.content ? `<img src="${el.content}" style="object-fit:${el.objectFit};${el.imageFilter && el.imageFilter !== 'none' ? `filter:${getFilterCSS(el.imageFilter)}` : ''}" draggable="false" alt="">` : '<div class="image-placeholder">Double-click to add image &middot; or drag/paste one</div>'}
       </div>
       ${selected ? renderHandles() : ''}
     </div>`;
@@ -339,7 +412,10 @@ function renderToolbar() {
 
   toolbarEl.innerHTML = `
     <div class="toolbar-group">
-      <button class="btn" data-action="add-slide">+ Slide</button>
+      <span class="split-button">
+        <button class="btn split-main" data-action="add-slide" title="Add new slide (uses last layout)">+ Slide</button>
+        <button class="btn split-arrow" data-action="add-slide-layouts" title="Choose layout&hellip;">&#9662;</button>
+      </span>
       <button class="btn" data-action="duplicate-slide">Duplicate</button>
       <button class="btn btn-danger" data-action="delete-slide">Delete</button>
     </div>
@@ -348,26 +424,30 @@ function renderToolbar() {
       <button class="btn" data-action="add-text">+ Text</button>
       <button class="btn" data-action="add-image">+ Image</button>
       <button class="btn" data-action="add-code">+ Code</button>
-      <button class="btn" data-action="add-shape">+ Shape</button>
+      <button class="btn" data-action="add-shape">+ Shape &#9662;</button>
+      <button class="btn" data-action="add-embed" title="Embed YouTube/web">+ Embed</button>
+      <button class="btn" data-action="add-video" title="MP4/WebM video">+ Video</button>
+      <button class="btn" data-action="add-audio" title="MP3/OGG audio">+ Audio</button>
     </div>
     <div class="toolbar-separator"></div>
     <div class="toolbar-group">
       <label>Theme:
         <select data-prop="theme">
-          ${['dark','light','ocean','sunset','forest','royal','minimal','magenta'].map(t =>
+          ${['dark','light','ocean','sunset','forest','royal','minimal','magenta','monokai','dracula','pastel','solarized'].map(t =>
             `<option value="${t}" ${pres.theme === t ? 'selected' : ''}>${t}</option>`
           ).join('')}
         </select>
       </label>
       <label>Transition:
         <select data-prop="transition">
-          ${['fade','slide','zoom','flip','cover','push','none'].map(t =>
+          ${['fade','slide','zoom','flip','cover','push','cube','reveal','glitch','blinds','rotate','none'].map(t =>
             `<option value="${t}" ${pres.transition === t ? 'selected' : ''}>${t}</option>`
           ).join('')}
         </select>
       </label>
     </div>
     <div class="toolbar-group toolbar-right">
+      <button class="btn" data-action="find" title="Find & Replace (Ctrl+F)">&#128269; Find</button>
       <button class="btn" data-action="export">Export</button>
       <label class="btn import-label">Import<input type="file" accept=".json" data-action="import" hidden></label>
       <button class="btn btn-primary" data-action="present">&#9654; Present</button>
@@ -390,12 +470,17 @@ function renderToolbar() {
 function handleToolbarClick(action) {
   switch (action) {
     case 'add-slide': addSlideQuick(); break;
+    case 'add-slide-layouts': openLayoutPopover(toolbarEl.querySelector('[data-action="add-slide-layouts"]')); break;
     case 'duplicate-slide': duplicateSlide(); break;
     case 'delete-slide': deleteSlide(); break;
     case 'add-text': addTextElement(); break;
     case 'add-image': addImageElement(); break;
-    case 'add-shape': addShapeElement(); break;
+    case 'add-shape': openShapePicker(toolbarEl.querySelector('[data-action="add-shape"]')); break;
     case 'add-code': addCodeElement(); break;
+    case 'add-embed': addEmbedElement(); break;
+    case 'add-video': addVideoElement(); break;
+    case 'add-audio': addAudioElement(); break;
+    case 'find': openFindReplace(); break;
     case 'present': switchMode('player'); break;
     case 'export': exportPresentation(getState().active); break;
   }
@@ -411,6 +496,66 @@ function addSlideQuick() {
   state.currentSlideIndex++;
   selectedElementId = null;
   save(); renderEditor();
+}
+
+function addSlideWithTemplate(idx) {
+  saveUndoState();
+  const state = getState();
+  if (!state.active) return;
+  const tpl = TEMPLATES[idx];
+  if (!tpl) return;
+  lastTemplateIndex = idx;
+  const slide = createSlide(tpl.build());
+  state.active.slides.splice(state.currentSlideIndex + 1, 0, slide);
+  state.currentSlideIndex++;
+  selectedElementId = null;
+  save(); renderEditor();
+}
+
+function openLayoutPopover(anchor) {
+  closeLayoutPopover();
+  const pop = document.createElement('div');
+  pop.className = 'layout-popover';
+  pop.id = 'layout-popover';
+  pop.innerHTML = TEMPLATES.map((t, i) =>
+    `<button data-tpl="${i}" title="${t.name}">
+      <div class="layout-thumb">${layoutThumbSVG(t)}</div>
+      <span>${t.name}</span>
+    </button>`
+  ).join('');
+  document.body.appendChild(pop);
+  const r = anchor.getBoundingClientRect();
+  pop.style.left = `${Math.min(r.left, window.innerWidth - 400)}px`;
+  pop.style.top = `${r.bottom + 4}px`;
+  pop.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-tpl]');
+    if (!b) return;
+    addSlideWithTemplate(parseInt(b.dataset.tpl, 10));
+    closeLayoutPopover();
+  });
+  setTimeout(() => {
+    const off = (e) => {
+      if (!pop.contains(e.target) && e.target !== anchor) {
+        closeLayoutPopover();
+        document.removeEventListener('mousedown', off);
+      }
+    };
+    document.addEventListener('mousedown', off);
+  }, 50);
+}
+
+function closeLayoutPopover() {
+  document.getElementById('layout-popover')?.remove();
+}
+
+function layoutThumbSVG(tpl) {
+  // Quick visual approximation by rendering the template's elements as small rects.
+  try {
+    const els = tpl.build();
+    return els.map(el => {
+      return `<div class="lt-el" style="left:${el.x}%;top:${el.y}%;width:${el.width}%;height:${el.height}%"></div>`;
+    }).join('');
+  } catch { return ''; }
 }
 
 // === TEMPLATE PANEL ===
@@ -578,15 +723,28 @@ function renderProperties() {
     } else {
       if (el.type === 'text') {
         html += renderTextProperties(el);
+      } else if (el.type === 'image') {
+        html += renderImageProperties(el);
+      } else if (el.type === 'shape') {
+        html += renderShapeProperties(el);
+      } else if (el.type === 'code') {
+        html += renderCodeProperties(el);
+      } else if (el.type === 'embed') {
+        html += renderMediaProperties(el, 'embed');
+      } else if (el.type === 'video') {
+        html += renderMediaProperties(el, 'video');
+      } else if (el.type === 'audio') {
+        html += renderMediaProperties(el, 'audio');
       } else {
         html += renderImageProperties(el);
       }
       html += renderStyleProperties(el);
+      html += renderArrangeProperties(el);
       html += renderPositionProperties(el);
       html += `
         <div class="props-actions">
-          <button class="btn btn-sm" data-action="bring-front">&#8593; Front</button>
-          <button class="btn btn-sm" data-action="send-back">&#8595; Back</button>
+          <button class="btn btn-sm" data-action="copy-style" title="Copy this element's style">&#9112; Copy Style</button>
+          <button class="btn btn-sm" data-action="paste-style" title="Paste style onto this element">&#9113; Paste Style</button>
           <button class="btn btn-sm" data-action="lock">${el.locked ? '&#128275; Unlock' : '&#128274; Lock'}</button>
           <button class="btn btn-sm" data-action="duplicate-el">&#9851; Clone</button>
           <button class="btn btn-sm btn-danger" data-action="delete-element">&#128465; Delete</button>
@@ -705,7 +863,12 @@ function renderTextProperties(el) {
 function renderImageProperties(el) {
   return `
     <h3>Image</h3>
-    <label>URL:<input type="text" data-field="content" value="${el.content}" placeholder="https://..."></label>
+    <div class="props-row">
+      <button class="btn btn-sm" data-action="replace-image" title="Replace from your computer">&#128247; Replace&hellip;</button>
+      <button class="btn btn-sm" data-action="flip-h" title="Flip Horizontal">&#8646;</button>
+      <button class="btn btn-sm" data-action="flip-v" title="Flip Vertical">&#8645;</button>
+    </div>
+    <label>URL:<input type="text" data-field="content" value="${escapeAttr(el.content)}" placeholder="https://..."></label>
     <label>Fit:
       <select data-field="objectFit">
         <option value="contain" ${el.objectFit === 'contain' ? 'selected' : ''}>Contain</option>
@@ -714,8 +877,109 @@ function renderImageProperties(el) {
         <option value="none" ${el.objectFit === 'none' ? 'selected' : ''}>None (original)</option>
       </select>
     </label>
+    <h3>Filter</h3>
+    <div class="filter-grid">
+      ${FILTERS.map(f => `
+        <button class="filter-chip ${(el.imageFilter || 'none') === f.id ? 'active' : ''}" data-filter="${f.id}" title="${f.name}">
+          <span class="filter-swatch" style="filter:${f.css || 'none'}"></span>
+          <span class="filter-name">${f.name}</span>
+        </button>
+      `).join('')}
+    </div>
     <h3>Link</h3>
-    <label>Element Link (opens on click in presentation):<input type="text" data-field="link" value="${el.link || ''}" placeholder="https://..."></label>
+    <label>Element Link (opens on click in presentation):<input type="text" data-field="link" value="${escapeAttr(el.link || '')}" placeholder="https://..."></label>
+  `;
+}
+
+function renderShapeProperties(el) {
+  return `
+    <h3>Shape</h3>
+    <div class="shape-picker">
+      ${SHAPE_TYPES.map(s => `
+        <button class="shape-pick ${s.id === el.shapeType ? 'active' : ''}" data-shape-type="${s.id}" title="${s.name}">${shapeSwatchSVG(s.id)}</button>
+      `).join('')}
+    </div>
+    <label>Fill:<input type="color" data-field="fillColor" value="${el.fillColor || '#7c5cfc'}"><button class="btn btn-xs clear-color" data-clear="fillColor">Clear</button></label>
+    <label>Stroke:<input type="color" data-field="strokeColor" value="${el.strokeColor && el.strokeColor !== 'transparent' ? el.strokeColor : '#ffffff'}"></label>
+    <label>Stroke Width:<div class="range-row"><input type="range" data-field="strokeWidth" min="0" max="20" value="${el.strokeWidth || 0}"><span class="range-val">${el.strokeWidth || 0}px</span></div></label>
+    <div class="props-row">
+      <button class="btn btn-sm" data-action="flip-h" title="Flip Horizontal">&#8646;</button>
+      <button class="btn btn-sm" data-action="flip-v" title="Flip Vertical">&#8645;</button>
+    </div>
+  `;
+}
+
+function renderCodeProperties(el) {
+  return `
+    <h3>Code</h3>
+    <label>Language:
+      <select data-field="language">
+        ${CODE_LANGUAGES.map(l => `<option value="${l}" ${l === el.language ? 'selected' : ''}>${l}</option>`).join('')}
+      </select>
+    </label>
+    <label>Theme:
+      <select data-field="codeTheme">
+        ${CODE_THEMES.map(t => `<option value="${t.id}" ${t.id === el.codeTheme ? 'selected' : ''}>${t.name}</option>`).join('')}
+      </select>
+    </label>
+    <label>Font Size:<div class="range-row"><input type="range" data-field="codeFontSize" min="8" max="40" step="1" value="${el.codeFontSize || 14}"><span class="range-val">${el.codeFontSize || 14}px</span></div></label>
+    <button class="btn btn-full" data-action="edit-code">&#9998; Open Code Editor</button>
+  `;
+}
+
+function renderMediaProperties(el, kind) {
+  const labels = { embed: 'Embed', video: 'Video', audio: 'Audio' };
+  const placeholders = {
+    embed: 'https://www.youtube.com/embed/...',
+    video: '.mp4 / .webm / .ogg URL',
+    audio: '.mp3 / .ogg / .wav URL',
+  };
+  const showFit = kind !== 'audio' && kind !== 'embed';
+  return `
+    <h3>${labels[kind]}</h3>
+    <label>URL:<input type="text" data-field="content" value="${escapeAttr(el.content || '')}" placeholder="${placeholders[kind]}"></label>
+    ${kind === 'embed' ? '' : `
+      <label class="checkbox-label"><input type="checkbox" data-field="autoplay" ${el.autoplay ? 'checked' : ''}> Autoplay in presentation</label>
+      <label class="checkbox-label"><input type="checkbox" data-field="loop" ${el.loop ? 'checked' : ''}> Loop</label>
+      ${kind === 'video' ? `<label class="checkbox-label"><input type="checkbox" data-field="muted" ${el.muted ? 'checked' : ''}> Muted</label>` : ''}
+      <label class="checkbox-label"><input type="checkbox" data-field="controls" ${el.controls !== false ? 'checked' : ''}> Show controls</label>
+    `}
+    ${showFit ? `
+      <label>Fit:
+        <select data-field="objectFit">
+          <option value="contain" ${(el.objectFit || 'contain') === 'contain' ? 'selected' : ''}>Contain</option>
+          <option value="cover" ${el.objectFit === 'cover' ? 'selected' : ''}>Cover</option>
+          <option value="fill" ${el.objectFit === 'fill' ? 'selected' : ''}>Fill</option>
+        </select>
+      </label>
+    ` : ''}
+    <h3>Link</h3>
+    <label>Element Link (opens on click in presentation):<input type="text" data-field="link" value="${escapeAttr(el.link || '')}" placeholder="https://..."></label>
+  `;
+}
+
+// Tiny attribute escaper so user-typed URLs / strings can't break out of attrs.
+function escapeAttr(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+}
+
+function renderArrangeProperties(el) {
+  return `
+    <h3>Arrange</h3>
+    <div class="arrange-grid">
+      <button class="btn btn-sm" data-arrange="left" title="Align Left edge of slide">&#8676;</button>
+      <button class="btn btn-sm" data-arrange="center-h" title="Center horizontally">&#8596;</button>
+      <button class="btn btn-sm" data-arrange="right" title="Align Right edge">&#8677;</button>
+      <button class="btn btn-sm" data-arrange="top" title="Align Top edge">&#8670;</button>
+      <button class="btn btn-sm" data-arrange="center-v" title="Center vertically">&#8597;</button>
+      <button class="btn btn-sm" data-arrange="bottom" title="Align Bottom edge">&#8671;</button>
+    </div>
+    <div class="props-row">
+      <button class="btn btn-sm" data-action="bring-front" title="Bring to Front">&#8679;&#8679;</button>
+      <button class="btn btn-sm" data-action="bring-forward" title="Bring Forward">&#8679;</button>
+      <button class="btn btn-sm" data-action="send-backward" title="Send Backward">&#8681;</button>
+      <button class="btn btn-sm" data-action="send-back" title="Send to Back">&#8681;&#8681;</button>
+    </div>
   `;
 }
 
@@ -878,8 +1142,39 @@ function attachAllListeners() {
   propertiesEl.querySelector('[data-action="delete-element"]')?.addEventListener('click', deleteElement);
   propertiesEl.querySelector('[data-action="bring-front"]')?.addEventListener('click', () => changeZIndex(el, 1));
   propertiesEl.querySelector('[data-action="send-back"]')?.addEventListener('click', () => changeZIndex(el, -1));
+  propertiesEl.querySelector('[data-action="bring-forward"]')?.addEventListener('click', () => stepZ(1));
+  propertiesEl.querySelector('[data-action="send-backward"]')?.addEventListener('click', () => stepZ(-1));
   propertiesEl.querySelector('[data-action="lock"]')?.addEventListener('click', () => { el.locked = !el.locked; save(); renderProperties(); renderCanvas(); });
   propertiesEl.querySelector('[data-action="duplicate-el"]')?.addEventListener('click', duplicateElement);
+  propertiesEl.querySelector('[data-action="copy-style"]')?.addEventListener('click', copyElementStyle);
+  propertiesEl.querySelector('[data-action="paste-style"]')?.addEventListener('click', pasteElementStyle);
+  propertiesEl.querySelector('[data-action="replace-image"]')?.addEventListener('click', replaceImageForSelected);
+  propertiesEl.querySelector('[data-action="flip-h"]')?.addEventListener('click', () => flipSelected('h'));
+  propertiesEl.querySelector('[data-action="flip-v"]')?.addEventListener('click', () => flipSelected('v'));
+  propertiesEl.querySelector('[data-action="edit-code"]')?.addEventListener('click', () => { if (el.type === 'code') openCodeEditor(el); });
+
+  // Arrange (align-to-slide) buttons
+  propertiesEl.querySelectorAll('[data-arrange]').forEach(btn => {
+    btn.addEventListener('click', () => alignSelectedToSlide(btn.dataset.arrange));
+  });
+
+  // Image filter chips
+  propertiesEl.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      saveUndoState();
+      el.imageFilter = btn.dataset.filter;
+      save(); renderCanvas(); renderProperties();
+    });
+  });
+
+  // Shape type picker (in properties panel)
+  propertiesEl.querySelectorAll('[data-shape-type]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      saveUndoState();
+      el.shapeType = btn.dataset.shapeType;
+      save(); renderCanvas(); renderProperties();
+    });
+  });
 
   // List conversion buttons
   propertiesEl.querySelectorAll('[data-list-action]').forEach(btn => {
@@ -1078,7 +1373,15 @@ function handleMouseMove(e) {
     showGuides(el, slide.elements, dragState.stageRect);
   }
 
-  renderCanvas();
+  // Fast path: directly update the dragged element's style without re-rendering
+  // the whole canvas. Avoids losing focus/state and is ~50x faster.
+  const node = canvasEl.querySelector(`.canvas-element[data-id="${el.id}"]`);
+  if (node) {
+    node.style.left = `${el.x}%`;
+    node.style.top = `${el.y}%`;
+    node.style.width = `${el.width}%`;
+    node.style.height = `${el.height}%`;
+  }
 }
 
 function handleMouseUp(e) {
@@ -1093,7 +1396,7 @@ function handleMouseUp(e) {
     hideGuides();
 
     if (wasMoved) {
-      save(); renderSlideList(); renderProperties();
+      save(); renderCanvas(); renderSlideList(); renderProperties();
     } else if (wasMove && selectedElementId) {
       // Click without drag on already-selected text element → enter edit mode
       const slide = getCurrentSlide();
@@ -1139,6 +1442,17 @@ function handleCanvasDblClick(e) {
     enterTextEditMode(element, el);
   } else if (el.type === 'code') {
     openCodeEditor(el);
+  } else if (el.type === 'embed') {
+    const url = prompt('Embed URL:', el.content || '');
+    if (url !== null) { saveUndoState(); el.content = normalizeEmbedUrl(url); save(); renderEditor(); }
+  } else if (el.type === 'video') {
+    const url = prompt('Video URL (mp4/webm/ogg):', el.content || '');
+    if (url !== null) { saveUndoState(); el.content = url; save(); renderEditor(); }
+  } else if (el.type === 'audio') {
+    const url = prompt('Audio URL (mp3/ogg/wav):', el.content || '');
+    if (url !== null) { saveUndoState(); el.content = url; save(); renderEditor(); }
+  } else if (el.type === 'shape') {
+    openShapePicker(element);
   } else {
     const url = prompt('Enter image URL:', el.content || '');
     if (url !== null) {
@@ -1328,6 +1642,8 @@ function convertSelectionToList(listType) {
   const editEl = document.querySelector('[contenteditable="true"]');
   if (!editEl) return;
 
+  saveUndoState();
+
   const text = editEl.innerText || editEl.textContent;
   const lines = text.split('\n').filter(l => l.trim());
 
@@ -1381,15 +1697,90 @@ function addImageElement() {
   save(); renderEditor();
 }
 
-function addShapeElement() {
+function addShapeElement(shapeType = 'rectangle') {
   saveUndoState();
   const slide = getCurrentSlide();
   if (!slide) return;
-  const el = createElement('text', {
-    x: 30, y: 30, width: 20, height: 30,
-    content: '', fontSize: 1, fontWeight: 'normal', textAlign: 'center', fontFamily: 'Inter',
-    backgroundColor: 'rgba(124, 92, 252, 0.3)', borderRadius: 8, borderWidth: 2, borderColor: '#7c5cfc'
+  const el = createElement('shape', {
+    x: 30, y: 30, width: 25, height: 25,
+    shapeType,
+    fillColor: '#7c5cfc',
+    strokeColor: 'transparent',
+    strokeWidth: 0
   });
+  slide.elements.push(el);
+  selectedElementId = el.id;
+  save(); renderEditor();
+}
+
+function openShapePicker(anchor) {
+  closeShapePicker();
+  const picker = document.createElement('div');
+  picker.className = 'shape-picker';
+  picker.id = 'shape-picker';
+  picker.innerHTML = SHAPE_TYPES.map(s => `<button data-shape="${s.id}" title="${s.name}">${shapeSwatchSVG(s.id)}</button>`).join('');
+  document.body.appendChild(picker);
+  const r = anchor ? anchor.getBoundingClientRect() : { left: 100, bottom: 100 };
+  picker.style.left = `${r.left}px`;
+  picker.style.top = `${r.bottom + 4}px`;
+  picker.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-shape]');
+    if (!b) return;
+    addShapeElement(b.dataset.shape);
+    closeShapePicker();
+  });
+  setTimeout(() => {
+    const handler = (e) => {
+      if (!picker.contains(e.target) && e.target !== anchor) { closeShapePicker(); document.removeEventListener('mousedown', handler); }
+    };
+    document.addEventListener('mousedown', handler);
+  }, 50);
+}
+
+function closeShapePicker() {
+  document.getElementById('shape-picker')?.remove();
+}
+
+function addEmbedElement() {
+  const url = prompt('Embed URL (YouTube, Vimeo, web page, etc.):', 'https://www.youtube.com/embed/dQw4w9WgXcQ');
+  if (!url) return;
+  saveUndoState();
+  const slide = getCurrentSlide();
+  if (!slide) return;
+  const el = createElement('embed', { x: 10, y: 12, width: 80, height: 75, content: normalizeEmbedUrl(url) });
+  slide.elements.push(el);
+  selectedElementId = el.id;
+  save(); renderEditor();
+}
+
+function normalizeEmbedUrl(url) {
+  // Auto-convert common YouTube/Vimeo URLs to embed form.
+  let m = url.match(/youtube\.com\/watch\?v=([\w-]+)/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  m = url.match(/youtu\.be\/([\w-]+)/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  m = url.match(/vimeo\.com\/(\d+)/);
+  if (m) return `https://player.vimeo.com/video/${m[1]}`;
+  return url;
+}
+
+function addVideoElement() {
+  const url = prompt('Video URL (mp4/webm/ogg) or leave blank:', '');
+  saveUndoState();
+  const slide = getCurrentSlide();
+  if (!slide) return;
+  const el = createElement('video', { x: 15, y: 15, width: 70, height: 70, content: url || '', autoplay: false, loop: false, muted: true });
+  slide.elements.push(el);
+  selectedElementId = el.id;
+  save(); renderEditor();
+}
+
+function addAudioElement() {
+  const url = prompt('Audio URL (mp3/ogg/wav) or leave blank:', '');
+  saveUndoState();
+  const slide = getCurrentSlide();
+  if (!slide) return;
+  const el = createElement('audio', { x: 20, y: 45, width: 60, height: 10, content: url || '' });
   slide.elements.push(el);
   selectedElementId = el.id;
   save(); renderEditor();
@@ -1496,6 +1887,112 @@ function changeZIndex(el, direction) {
   const minZ = Math.min(...slide.elements.map(e => e.zIndex || 0));
   el.zIndex = direction > 0 ? maxZ + 1 : minZ - 1;
   save(); renderCanvas();
+}
+
+// Resolve the currently selected element on the current slide, or null.
+function getSelectedEl() {
+  const slide = getCurrentSlide();
+  return slide?.elements.find(e => e.id === selectedElementId) || null;
+}
+
+// Step the selected element one position up (+1) or down (-1) in z-order
+// without jumping straight to top/bottom — for finer arrangement control.
+function stepZ(direction) {
+  const el = getSelectedEl();
+  if (!el) return;
+  saveUndoState();
+  el.zIndex = (el.zIndex || 0) + (direction > 0 ? 1 : -1);
+  save(); renderCanvas();
+}
+
+// Toggle a flipX / flipY flag on the selected element. Combined with rotation
+// at render time via CSS transform: rotate(...) scale(...).
+function flipSelected(axis) {
+  const el = getSelectedEl();
+  if (!el) return;
+  saveUndoState();
+  if (axis === 'h') el.flipX = !el.flipX;
+  else if (axis === 'v') el.flipY = !el.flipY;
+  save(); renderCanvas();
+}
+
+// Align the selected element to a slide edge or center along one axis. Values:
+// 'left' | 'right' | 'top' | 'bottom' | 'center-h' | 'center-v'. All math runs
+// in the 0–100 percentage space the elements use natively.
+function alignSelectedToSlide(side) {
+  const el = getSelectedEl();
+  if (!el) return;
+  saveUndoState();
+  switch (side) {
+    case 'left':     el.x = 0; break;
+    case 'right':    el.x = 100 - el.width; break;
+    case 'top':      el.y = 0; break;
+    case 'bottom':   el.y = 100 - el.height; break;
+    case 'center-h': el.x = (100 - el.width) / 2; break;
+    case 'center-v': el.y = (100 - el.height) / 2; break;
+  }
+  save(); renderCanvas(); renderProperties();
+}
+
+// Visual style properties shared across all element types.
+const SHARED_STYLE_KEYS = [
+  'backgroundColor', 'opacity', 'borderWidth', 'borderColor', 'borderStyle',
+  'borderRadius', 'shadowEnabled', 'shadowColor', 'shadowBlur', 'shadowX', 'shadowY',
+];
+// Per-type style props copied in addition to the shared set above.
+const TYPE_STYLE_KEYS = {
+  text:  ['fontFamily', 'fontSize', 'fontWeight', 'fontColor', 'textAlign', 'verticalAlign',
+          'letterSpacing', 'lineHeight', 'textTransform', 'textShadow'],
+  image: ['objectFit', 'imageFilter'],
+  shape: ['fillColor', 'strokeColor', 'strokeWidth'],
+  code:  ['language', 'codeTheme', 'codeFontSize'],
+};
+
+function copyElementStyle() {
+  const el = getSelectedEl();
+  if (!el) { toast('Select an element first'); return; }
+  styleClipboard = { type: el.type };
+  for (const k of SHARED_STYLE_KEYS) if (k in el) styleClipboard[k] = el[k];
+  for (const k of (TYPE_STYLE_KEYS[el.type] || [])) if (k in el) styleClipboard[k] = el[k];
+  toast('Style copied');
+}
+
+function pasteElementStyle() {
+  const el = getSelectedEl();
+  if (!el) { toast('Select an element first'); return; }
+  if (!styleClipboard) { toast('No style to paste yet'); return; }
+  saveUndoState();
+  for (const k of SHARED_STYLE_KEYS) if (k in styleClipboard) el[k] = styleClipboard[k];
+  // Type-specific props only paste when types match — avoids meaningless cross
+  // assignments like a font family landing on a shape.
+  if (styleClipboard.type === el.type) {
+    for (const k of (TYPE_STYLE_KEYS[el.type] || [])) if (k in styleClipboard) el[k] = styleClipboard[k];
+  }
+  save(); renderEditor();
+  toast('Style pasted');
+}
+
+// Open a file picker and replace the selected image element's content with the
+// chosen file as a data URL. Keeps position / sizing so the swap is in place.
+function replaceImageForSelected() {
+  const el = getSelectedEl();
+  if (!el || el.type !== 'image') { toast('Select an image to replace'); return; }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      saveUndoState();
+      el.content = reader.result;
+      save(); renderEditor();
+      toast('Image replaced');
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
 }
 
 // === SLIDE OPERATIONS ===

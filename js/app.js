@@ -2,7 +2,8 @@ import { loadData, saveData, createPresentation } from './storage.js';
 import { initEditor, renderEditor } from './editor.js';
 import { initPlayer, startPresentation, stopPresentation } from './player.js';
 import { loadAllUsedFonts, loadFont } from './fonts.js';
-import { initMenu, updateMenuTitle } from './menu.js';
+import { initMenu, updateMenuTitle, rebuildMenuBar } from './menu.js';
+import { pushRecent } from './storage.js';
 
 const state = {
   presentations: [],
@@ -18,6 +19,7 @@ export function getState() {
 export function setActivePresentation(id) {
   state.active = state.presentations.find(p => p.id === id) || null;
   state.currentSlideIndex = 0;
+  if (state.active) pushRecent(state.active.id);
   save();
   renderEditor();
 }
@@ -33,15 +35,15 @@ export function setCurrentSlideIndex(index) {
   renderEditor();
 }
 
-export function switchMode(mode) {
-  state.mode = mode;
+export function switchMode(mode, options = {}) {
+  state.mode = mode === 'editor' ? 'editor' : 'player';
   const editorEl = document.getElementById('editor');
   const playerEl = document.getElementById('player');
 
-  if (mode === 'player') {
+  if (state.mode === 'player') {
     editorEl.hidden = true;
     playerEl.hidden = false;
-    startPresentation(state.active, state.currentSlideIndex);
+    startPresentation(state.active, state.currentSlideIndex, { instructor: !!options.instructor });
   } else {
     playerEl.hidden = true;
     editorEl.hidden = false;
@@ -53,12 +55,31 @@ export function switchMode(mode) {
 let saveTimeout;
 export function save() {
   clearTimeout(saveTimeout);
+  setSaveStatus('saving');
   saveTimeout = setTimeout(() => {
-    saveData({
-      presentations: state.presentations,
-      activeId: state.active?.id || null
-    });
+    try {
+      saveData({
+        presentations: state.presentations,
+        activeId: state.active?.id || null
+      });
+      setSaveStatus('saved');
+    } catch (e) {
+      setSaveStatus('error', e?.message || 'Save failed');
+    }
   }, 300);
+}
+
+function setSaveStatus(kind, msg) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  el.classList.remove('saving', 'saved-just');
+  if (kind === 'saving') { el.textContent = 'Saving…'; el.classList.add('saving'); }
+  else if (kind === 'saved') {
+    const t = new Date();
+    el.textContent = `Saved · ${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+    el.classList.add('saved-just');
+  }
+  else if (kind === 'error') { el.textContent = `⚠ ${msg || 'Error'}`; }
 }
 
 function initState() {
@@ -83,7 +104,15 @@ function handleKeydown(e) {
 
   if (e.key === 'F5' || (e.ctrlKey && e.key === 'Enter') || (e.metaKey && e.key === 'Enter')) {
     e.preventDefault();
-    switchMode('player');
+    // Shift+F5 (or Ctrl/Cmd+Shift+Enter) launches Instructor Mode — windowed
+    // presentation that keeps browser tabs and the OS taskbar visible.
+    switchMode('player', { instructor: e.shiftKey });
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+    e.preventDefault();
+    document.dispatchEvent(new CustomEvent('presenter:find'));
     return;
   }
 
@@ -161,6 +190,52 @@ document.addEventListener('DOMContentLoaded', () => {
   initEditor();
   initPlayer();
   document.addEventListener('keydown', handleKeydown);
-  document.addEventListener('menu:refresh', () => { updateMenuTitle(); renderEditor(); });
+  document.addEventListener('menu:refresh', () => { rebuildMenuBar(); updateMenuTitle(); renderEditor(); });
+  document.addEventListener('title:changed', () => { saveData(state); });
+  document.addEventListener('presenter:toast', (e) => showToast(e.detail));
+
+  // Allow the Speaker View popup to start/stop a presentation when the
+  // editor isn't yet in player mode. The player.js channel listener only
+  // runs while mode==='player', so we handle 'start' here as a fallback.
+  try {
+    const sbc = new BroadcastChannel('presenter-speaker');
+    sbc.onmessage = (m) => {
+      const d = m.data;
+      if (!d || d.kind !== 'cmd') return;
+      if (d.cmd === 'start') {
+        const wantInstructor = !!d.instructor;
+        const playerEl = document.getElementById('player');
+        const isPlaying = state.mode === 'player';
+        const currentlyInstructor = playerEl?.classList.contains('instructor') || false;
+        if (!isPlaying) {
+          switchMode('player', { instructor: wantInstructor });
+        } else if (currentlyInstructor !== wantInstructor) {
+          // Toggle between presenter and instructor modes mid-presentation.
+          switchMode('editor');
+          setTimeout(() => switchMode('player', { instructor: wantInstructor }), 50);
+        }
+      } else if (d.cmd === 'stop') {
+        if (state.mode === 'player') switchMode('editor');
+      }
+    };
+  } catch {}
   renderEditor();
 });
+
+// Lightweight toast renderer. Anything in the app can fire
+// `presenter:toast` with a string and it'll appear bottom-centre.
+let toastTimer = null;
+function showToast(msg) {
+  if (!msg) return;
+  let host = document.getElementById('presenter-toast');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'presenter-toast';
+    host.className = 'presenter-toast';
+    document.body.appendChild(host);
+  }
+  host.textContent = msg;
+  host.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => host.classList.remove('show'), 2200);
+}

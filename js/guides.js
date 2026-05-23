@@ -2,9 +2,17 @@ let guidesEl = null;
 const SNAP_THRESHOLD = 1.5;
 
 export function initGuides(container) {
-  guidesEl = document.createElement('div');
-  guidesEl.className = 'alignment-guides';
-  container.appendChild(guidesEl);
+  // Reuse the .alignment-guides node baked into the slide-stage template if
+  // present — otherwise create one. Re-rendering the stage replaces the
+  // existing node so we must re-bind on every initGuides() call.
+  guidesEl = container.querySelector(':scope > .alignment-guides');
+  if (!guidesEl) {
+    guidesEl = document.createElement('div');
+    guidesEl.className = 'alignment-guides';
+    container.appendChild(guidesEl);
+  } else {
+    guidesEl.innerHTML = '';
+  }
 }
 
 export function showGuides(movingEl, allElements, stageRect) {
@@ -88,16 +96,21 @@ export function hideGuides() {
 }
 
 function renderGuides(guides) {
+  // De-duplicate guides at the same position; prefer center over edge so the
+  // user sees the more informative blue marker when both happen to coincide.
   const unique = new Map();
   guides.forEach(g => {
     const key = `${g.type}-${g.pos.toFixed(1)}`;
-    if (!unique.has(key)) unique.set(key, g);
+    const existing = unique.get(key);
+    if (!existing || (g.isCenter && !existing.isCenter)) unique.set(key, g);
   });
 
   guidesEl.innerHTML = Array.from(unique.values()).map(g => {
-    if (g.type === 'vertical') {
-      return `<div class="guide guide-v ${g.isCenter ? 'guide-center' : ''}" style="left:${g.pos}%"></div>`;
-    }
-    return `<div class="guide guide-h ${g.isCenter ? 'guide-center' : ''}" style="top:${g.pos}%"></div>`;
+    const cls = `guide guide-${g.type === 'vertical' ? 'v' : 'h'} ${g.isCenter ? 'guide-center' : 'guide-edge'}`;
+    const label = g.isCenter ? 'Center' : 'Edge';
+    const pos = g.type === 'vertical'
+      ? `left:${g.pos}%`
+      : `top:${g.pos}%`;
+    return `<div class="${cls}" style="${pos}"><span class="guide-label">${label}</span></div>`;
   }).join('');
 }

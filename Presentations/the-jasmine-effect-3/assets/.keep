@@ -1,0 +1,3 @@
+Place fonts, videos, code-snippet files, or other binary assets here.
+Reference them from the presentation JSON as:
+  Presentations/<this-folder>/assets/<filename>
